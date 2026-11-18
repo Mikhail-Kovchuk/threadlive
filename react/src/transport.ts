@@ -186,6 +186,7 @@ export function createDemoTransport(options: DemoTransportOptions = {}): Threadl
     conversation && {
       ...conversation,
       unread: messages.filter((m) => m.direction === 'agent' && m.id > readUpTo).length,
+      active: conversation.status !== 'closed',
     };
 
   const add = (message: Omit<ChatMessage, 'id' | 'created_at'>): ChatMessage => {
@@ -217,7 +218,7 @@ export function createDemoTransport(options: DemoTransportOptions = {}): Threadl
         online,
         hours,
         can_write: true,
-        poll_ms: { open: 1500, closed: 5000 },
+        poll_ms: { open: 1500, closed: 5000, idle: 15000, idle_after: 300000 },
         max_message_length: 2000,
         agent_display_name: 'Support',
         conversation: snapshot(),
@@ -248,7 +249,7 @@ export function createDemoTransport(options: DemoTransportOptions = {}): Threadl
       const message = repeated ?? add({ direction: 'visitor', body, client_msg_id, author: null });
 
       if (!conversation) {
-        conversation = { status: 'waiting', unread: 0, email: null };
+        conversation = { status: 'waiting', unread: 0, email: null, active: true };
       } else if (!repeated) {
         conversation.status = 'waiting';
       }

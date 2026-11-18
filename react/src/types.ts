@@ -30,6 +30,11 @@ export interface ConversationState {
   unread: number;
   /** Where offline replies also go, once the visitor has left it. */
   email?: string | null;
+  /**
+   * Live: not closed and recently active, so a reply may still come. Only a
+   * live conversation is polled while the panel is closed.
+   */
+  active: boolean;
 }
 
 export interface SupportHours {
@@ -50,7 +55,12 @@ export interface Bootstrap {
   hours: SupportHours;
   /** False for a guest when the backend does not take messages from guests. */
   can_write: boolean;
-  poll_ms: { open: number; closed: number };
+  /**
+   * open: panel open. closed: panel closed, live conversation only. idle:
+   * panel open but the visitor idle. idle_after: no input for this long is
+   * idle — and stops polling altogether while the panel is closed.
+   */
+  poll_ms: { open: number; closed: number; idle: number; idle_after: number };
   max_message_length: number;
   /** Shown as "Maria · Support", or alone when agent names are hidden. */
   agent_display_name: string;

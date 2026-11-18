@@ -43,6 +43,56 @@ export function useDocumentVisible(): boolean {
   return visible;
 }
 
+const ACTIVITY_EVENTS = ['pointerdown', 'pointermove', 'keydown', 'wheel', 'scroll', 'touchstart'] as const;
+
+/**
+ * True once the visitor has not touched the page for `afterMs`: a tab left
+ * open on a second screen, a laptop walked away from. Any input, or the tab
+ * becoming visible again, ends it.
+ */
+export function useIdle(afterMs: number): boolean {
+  const [idle, setIdle] = useState(false);
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let lastSeen = 0;
+
+    const arm = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => setIdle(true), afterMs);
+    };
+
+    const onActivity = () => {
+      // pointermove and scroll fire constantly; once a second is plenty.
+      const now = Date.now();
+      if (now - lastSeen < 1000) return;
+      lastSeen = now;
+      setIdle(false);
+      arm();
+    };
+
+    const onVisibility = () => {
+      if (!document.hidden) onActivity();
+    };
+
+    arm();
+    for (const type of ACTIVITY_EVENTS) {
+      window.addEventListener(type, onActivity, { capture: true, passive: true });
+    }
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      clearTimeout(timer);
+      for (const type of ACTIVITY_EVENTS) {
+        window.removeEventListener(type, onActivity, { capture: true });
+      }
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [afterMs]);
+
+  return idle;
+}
+
 const MAX_BACKOFF_MS = 60_000;
 
 interface UseChatOptions {
@@ -55,10 +105,17 @@ interface UseChatOptions {
 /**
  * The conversation: bootstrap, polling, optimistic sends, read receipts.
  *
- * Polling runs only once there is a conversation: every `poll_ms.open` while
- * the panel is open, `poll_ms.closed` while it is closed (for the badge),
- * not at all while the tab is hidden, and with exponential backoff after a
- * failure.
+ * Polling costs the host a request each time, so it runs only when a reply
+ * could matter:
+ *
+ *   tab hidden                                  → never
+ *   no conversation                             → never
+ *   panel closed, conversation not live         → never (next page load shows replies)
+ *   panel closed, visitor idle                  → never (input resumes it at once)
+ *   panel closed, live conversation             → every poll_ms.closed, for the badge
+ *   panel open                                  → every poll_ms.open (poll_ms.idle when idle)
+ *
+ * with exponential backoff after a failure.
  */
 export function useChat({ transport, open, visible, getContext }: UseChatOptions) {
   const [state, dispatch] = useReducer(chatReducer, initialChatState);
@@ -85,11 +142,20 @@ export function useChat({ transport, open, visible, getContext }: UseChatOptions
 
   const ready = state.phase === 'ready' && state.bootstrap?.enabled === true;
   const hasConversation = state.conversation !== null;
-  const pollOpen = state.bootstrap?.poll_ms.open ?? 3000;
-  const pollClosed = state.bootstrap?.poll_ms.closed ?? 30000;
+  const live = state.conversation?.active === true;
+  const poll = state.bootstrap?.poll_ms;
+  const pollOpen = poll?.open ?? 3000;
+  const pollClosed = poll?.closed ?? 30000;
+  const pollIdle = poll?.idle ?? 15000;
+  const idle = useIdle(poll?.idle_after ?? 300000);
 
   useEffect(() => {
     if (!ready || !hasConversation) {
+      return;
+    }
+
+    // Panel closed: only for a reply that may still come, to someone around to see it.
+    if (!open && (!live || idle)) {
       return;
     }
 
@@ -106,7 +172,7 @@ export function useChat({ transport, open, visible, getContext }: UseChatOptions
 
     const schedule = () => {
       clearTimeout(timer);
-      const base = open ? pollOpen : pollClosed;
+      const base = open ? (idle ? pollIdle : pollOpen) : pollClosed;
       timer = setTimeout(() => void tick(), failures === 0 ? base : Math.min(base * 2 ** failures, MAX_BACKOFF_MS));
     };
 
@@ -142,12 +208,9 @@ export function useChat({ transport, open, visible, getContext }: UseChatOptions
       }
     };
 
-    // Opening the panel, or a history not loaded yet, should not wait a cycle.
-    if (open || !latest.current.historyLoaded) {
-      void tick();
-    } else {
-      schedule();
-    }
+    // Whatever (re)started polling — opening the panel, coming back from
+    // idle, a first load — deserves an answer now, not a cycle later.
+    void tick();
 
     document.addEventListener('visibilitychange', onVisibility);
 
@@ -156,7 +219,7 @@ export function useChat({ transport, open, visible, getContext }: UseChatOptions
       clearTimeout(timer);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [ready, hasConversation, open, transport, pollOpen, pollClosed, latest]);
+  }, [ready, hasConversation, live, idle, open, transport, pollOpen, pollClosed, pollIdle, latest]);
 
   // Read receipts: whatever the visitor can see is read.
   const lastAgentId = findLast(state.messages, (m) => m.direction === 'agent')?.id ?? null;

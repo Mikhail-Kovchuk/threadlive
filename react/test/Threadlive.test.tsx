@@ -21,7 +21,7 @@ function boot(overrides: Partial<Bootstrap> = {}): Bootstrap {
     online: true,
     hours: { from: '09:00', to: '23:00', tz: 'UTC' },
     can_write: true,
-    poll_ms: { open: 1000, closed: 5000 },
+    poll_ms: { open: 1000, closed: 5000, idle: 5000, idle_after: 300000 },
     max_message_length: 2000,
     agent_display_name: 'Support',
     conversation: null,
@@ -29,7 +29,7 @@ function boot(overrides: Partial<Bootstrap> = {}): Bootstrap {
   };
 }
 
-const waiting: ConversationState = { status: 'waiting', unread: 0 };
+const waiting: ConversationState = { status: 'waiting', unread: 0, active: true };
 
 function agentMessage(id: number, body: string): ChatMessage {
   return { id, direction: 'agent', body, author: 'Maria', created_at: new Date().toISOString() };
@@ -177,10 +177,10 @@ describe('Threadlive', () => {
   });
 
   it('shows unread replies on the closed launcher, and reads them on opening', async () => {
-    const transport = fakeTransport(boot({ conversation: { status: 'answered', unread: 1 } }));
+    const transport = fakeTransport(boot({ conversation: { status: 'answered', unread: 1, active: true } }));
     transport.messages.mockResolvedValue({
       messages: [agentMessage(5, 'Hi! Let me check.')],
-      conversation: { status: 'answered', unread: 1 },
+      conversation: { status: 'answered', unread: 1, active: true },
     });
     const onUnreadChange = vi.fn();
     render(<Threadlive transport={transport} onUnreadChange={onUnreadChange} />);
@@ -227,7 +227,9 @@ describe('Threadlive', () => {
     Object.defineProperty(document, 'hidden', { configurable: true, get: () => hidden });
 
     try {
-      const transport = fakeTransport(boot({ conversation: waiting, poll_ms: { open: 20, closed: 20 } }));
+      const transport = fakeTransport(
+        boot({ conversation: waiting, poll_ms: { open: 20, closed: 20, idle: 20, idle_after: 300000 } }),
+      );
       render(<Threadlive transport={transport} />);
       await waitFor(() => expect(transport.messages).toHaveBeenCalled());
 
@@ -244,6 +246,39 @@ describe('Threadlive', () => {
       delete (document as { hidden?: boolean }).hidden;
       if (descriptor) Object.defineProperty(Document.prototype, 'hidden', descriptor);
     }
+  });
+
+  it('does not poll a conversation that is no longer live while the panel is closed', async () => {
+    const transport = fakeTransport(
+      boot({
+        conversation: { status: 'closed', unread: 0, active: false },
+        poll_ms: { open: 20, closed: 20, idle: 20, idle_after: 300000 },
+      }),
+    );
+    render(<Threadlive transport={transport} />);
+    await launcher();
+    await sleep(120);
+
+    expect(transport.messages).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open support chat' }));
+    await waitFor(() => expect(transport.messages).toHaveBeenCalled());
+  });
+
+  it('stops polling while the visitor is idle, and checks at once on their next move', async () => {
+    const transport = fakeTransport(
+      boot({ conversation: waiting, poll_ms: { open: 20, closed: 20, idle: 20, idle_after: 60 } }),
+    );
+    render(<Threadlive transport={transport} />);
+    await waitFor(() => expect(transport.messages).toHaveBeenCalled());
+
+    await sleep(150); // idle after 60 ms
+    const whileIdle = transport.messages.mock.calls.length;
+    await sleep(150);
+    expect(transport.messages.mock.calls.length).toBe(whileIdle);
+
+    fireEvent.keyDown(document.body, { key: 'a' });
+    await waitFor(() => expect(transport.messages.mock.calls.length).toBeGreaterThan(whileIdle));
   });
 
   it('turns the theme into CSS variables, leaving the rest to the stylesheet', async () => {
