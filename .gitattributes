@@ -1,0 +1,5 @@
+# One line ending in the repository whatever the checkout machine does.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.webp binary

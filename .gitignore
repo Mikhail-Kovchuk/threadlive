@@ -1,0 +1,40 @@
+# Internal working notes — the build plan and the design canvas name the first
+# host (its repos, admin panel, Telegram account, brand). They stay on the
+# owner's machine; this repository is public and host-neutral.
+PLAN.md
+design/
+CLAUDE.md
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# PHP (laravel/)
+/laravel/vendor/
+/laravel/composer.lock
+.phpunit.cache/
+.phpunit.result.cache
+.php-cs-fixer.cache
+/laravel/build/
+
+# Node (react/)
+node_modules/
+/react/dist/
+/react/coverage/
+*.tsbuildinfo
+# Written by the React build from package.json: generated, never edited.
+/react/src/version.ts
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editors
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
