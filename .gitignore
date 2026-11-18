@@ -22,6 +22,7 @@ CLAUDE.md
 node_modules/
 /react/dist/
 /react/coverage/
+.vitest/
 *.tsbuildinfo
 # Written by the React build from package.json: generated, never edited.
 /react/src/version.ts

@@ -1,0 +1,71 @@
+{
+    "name": "threadlive-react",
+    "//version": "Set from the git tag by the release workflow, before it builds. The value here is what a local build reports.",
+    "version": "0.0.0-dev",
+    "description": "Threadlive — live chat in Telegram threads. The React widget for your website.",
+    "keywords": [
+        "telegram",
+        "live-chat",
+        "chat-widget",
+        "react",
+        "customer-support"
+    ],
+    "homepage": "https://github.com/Mikhail-Kovchuk/threadlive#readme",
+    "bugs": "https://github.com/Mikhail-Kovchuk/threadlive/issues",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/Mikhail-Kovchuk/threadlive.git",
+        "directory": "react"
+    },
+    "license": "MIT",
+    "publishConfig": {
+        "access": "public"
+    },
+    "type": "module",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "default": "./dist/index.js"
+        },
+        "./styles.css": "./dist/styles.css"
+    },
+    "files": [
+        "dist",
+        "src"
+    ],
+    "sideEffects": [
+        "*.css"
+    ],
+    "scripts": {
+        "build": "node scripts/write-version.mjs && tsc --project tsconfig.build.json && node scripts/copy-css.mjs",
+        "typecheck": "node scripts/write-version.mjs && tsc --noEmit",
+        "test": "node scripts/write-version.mjs && node scripts/vitest.mjs run",
+        "prepare": "npm run build"
+    },
+    "peerDependencies": {
+        "react": "^18.2.0 || ^19.0.0",
+        "react-dom": "^18.2.0 || ^19.0.0"
+    },
+    "//peerDependenciesMeta": "npm 7+ installs peers automatically. When this package is linked from a path rather than installed from a registry, that puts a SECOND copy of React under the package, and hooks from two copies throw 'invalid hook call' at render. Marking them optional stops the install.",
+    "peerDependenciesMeta": {
+        "react": {
+            "optional": true
+        },
+        "react-dom": {
+            "optional": true
+        }
+    },
+    "devDependencies": {
+        "@testing-library/dom": "^10.4.2",
+        "@testing-library/react": "^16.3.3",
+        "@types/react": "^19.3.0",
+        "@types/react-dom": "^19.3.0",
+        "jsdom": "^31.0.1",
+        "react": "^19.3.1",
+        "react-dom": "^19.3.1",
+        "typescript": "~5.9",
+        "vitest": "^5.1.1"
+    }
+}

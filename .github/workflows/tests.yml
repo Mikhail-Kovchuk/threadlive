@@ -1,0 +1,113 @@
+# Both packages run inside other people's applications, on their versions of
+# PHP, Laravel and React. The matrix holds the code to every version the
+# manifests promise, the oldest included — a promise only the newest version
+# checked is a guess.
+
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  laravel:
+    name: Laravel ${{ matrix.laravel }} · PHP ${{ matrix.php }}${{ matrix.dependencies == 'lowest' && ' · lowest' || '' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.3', '8.4']
+        laravel: ['12', '13']
+        dependencies: [highest]
+        include:
+          - laravel: '12'
+            testbench: '10'
+          - laravel: '13'
+            testbench: '11'
+          # The oldest of everything composer.json allows: Laravel 12.0, with
+          # Pest 3, because early 12.x does not run under PHPUnit 12. Catches
+          # a call to an API newer than the floor we promise.
+          - php: '8.3'
+            laravel: '12'
+            testbench: '10'
+            dependencies: lowest
+    defaults:
+      run:
+        working-directory: laravel
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+
+      # config.platform.php in composer.json resolves for PHP 8.3 on either
+      # runner, so the 8.4 run executes the packages an 8.3 host would get.
+      - name: Install dependencies
+        run: >
+          composer update --no-interaction --no-progress --prefer-dist
+          --with="orchestra/testbench:^${{ matrix.testbench }}.0"
+          ${{ matrix.dependencies == 'lowest' && '--prefer-lowest --prefer-stable' || '' }}
+
+      - run: vendor/bin/pest
+
+  laravel-static:
+    name: PHPStan · Pint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: laravel
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - run: composer update --no-interaction --no-progress --prefer-dist
+
+      - run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G
+
+      - run: vendor/bin/pint --test
+
+  react:
+    name: React ${{ matrix.react }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        react: ['18', '19']
+    defaults:
+      run:
+        working-directory: react
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: react/package-lock.json
+
+      - run: npm ci
+
+      # The repository develops against React 19. For 18, swap in its runtime
+      # and its types: the typecheck then fails on a React 19-only API (use,
+      # useOptimistic, ref as a plain prop), the tests on behaviour that
+      # differs between the two.
+      - name: Use React 18
+        if: matrix.react == '18'
+        run: npm install --no-save react@18 react-dom@18 @types/react@18 @types/react-dom@18
+
+      - run: npm run typecheck
+
+      - run: npm test
+
+      - run: npm run build

@@ -1,0 +1,27 @@
+/*
+ * threadlive-react — the widget's only stylesheet. Import it once:
+ *
+ *   import 'threadlive-react/styles.css';
+ *
+ * Every class starts with tl-, every themeable value is a --tl-* variable.
+ * The defaults sit in :where(), which has no specificity, so any rule of the
+ * page's that sets a --tl-* variable on .tl-root wins over them.
+ */
+
+:where(.tl-root) {
+  --tl-accent: #0066ff;
+  --tl-header-bg: #011936;
+  --tl-font: Geist, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --tl-radius: 16px;
+}
+
+.tl-root {
+  font-family: var(--tl-font);
+}
+
+.tl-root,
+.tl-root *,
+.tl-root *::before,
+.tl-root *::after {
+  box-sizing: border-box;
+}
