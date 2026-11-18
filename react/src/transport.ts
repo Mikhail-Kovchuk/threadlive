@@ -3,6 +3,7 @@ import type {
   ChatMessage,
   ConversationState,
   MessagesResult,
+  SendContext,
   SendResult,
   SupportHours,
   ThreadliveTransport,
@@ -149,7 +150,7 @@ export interface DemoTransportOptions {
    * What the backend's ChatHost::contextLine() would say for this context:
    * a card is added before a message whenever the line changes.
    */
-  contextLine?: (context: Record<string, unknown> | undefined) => string | null;
+  contextLine?: (context: SendContext | undefined) => string | null;
 }
 
 const DEMO_REPLIES = [

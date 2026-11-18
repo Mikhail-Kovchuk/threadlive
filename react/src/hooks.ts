@@ -178,7 +178,12 @@ export function useChat({ transport, open, visible, getContext }: UseChatOptions
   const deliver = useCallback(
     async (body: string, clientMsgId: string) => {
       try {
-        const result = await transport.send({ body, client_msg_id: clientMsgId, context: getContext.current?.() });
+        const context = {
+          url: window.location.href,
+          title: document.title,
+          attributes: getContext.current?.() ?? {},
+        };
+        const result = await transport.send({ body, client_msg_id: clientMsgId, context });
         dispatch({ type: 'sent', clientMsgId, ...result });
       } catch (error) {
         // A 4xx message is written for visitors (e.g. "The message may not be

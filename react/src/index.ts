@@ -11,6 +11,7 @@ export type {
   ConversationStatus,
   MessageDirection,
   MessagesResult,
+  SendContext,
   SendInput,
   SendResult,
   SupportHours,

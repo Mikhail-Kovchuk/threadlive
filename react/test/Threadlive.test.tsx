@@ -113,7 +113,7 @@ describe('Threadlive', () => {
     expect(transport.send).toHaveBeenCalledWith({
       body: 'Hello',
       client_msg_id: expect.stringMatching(UUID),
-      context: { page: '/orders/DE-1' },
+      context: { url: window.location.href, title: document.title, attributes: { page: '/orders/DE-1' } },
     });
 
     finish({} as SendResult);
