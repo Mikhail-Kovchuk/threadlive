@@ -215,6 +215,57 @@ describe('Threadlive', () => {
     expect(onUnreadChange).toHaveBeenLastCalledWith(0);
   });
 
+  it('does not skip a reply that came in while the visitor was sending', async () => {
+    const answered: ConversationState = { status: 'answered', unread: 0, active: true };
+    const transport = fakeTransport(boot({ conversation: answered, poll_ms: { open: 30, closed: 30, idle: 30, idle_after: 300000 } }));
+    // History: message 10. Then the manager replies (11) and, before the next
+    // poll, the visitor's send comes back as 12.
+    transport.messages.mockImplementation(async (after) =>
+      after === null
+        ? { messages: [agentMessage(10, 'Hello!')], conversation: answered }
+        : { messages: after < 11 ? [agentMessage(11, 'The answer.')] : [], conversation: answered },
+    );
+    transport.send.mockImplementation(async ({ body, client_msg_id }) => ({
+      message: { id: 12, direction: 'visitor', body, client_msg_id, created_at: new Date().toISOString() },
+      conversation: answered,
+    }));
+    render(<Threadlive transport={transport} />);
+    await openChat();
+    await screen.findByText('Hello!');
+    transport.messages.mockClear();
+
+    type('Thanks');
+
+    expect(await screen.findByText('The answer.')).toBeTruthy();
+    expect(transport.messages.mock.calls.every(([after]) => after === 10 || after === 11)).toBe(true);
+  });
+
+  it('sends a guest\'s second message only after the first one started the conversation', async () => {
+    const transport = fakeTransport();
+    let finishFirst: () => void = () => {};
+    transport.send.mockImplementationOnce(
+      ({ body, client_msg_id }) =>
+        new Promise((resolve) => {
+          finishFirst = () =>
+            resolve({
+              message: { id: 1, direction: 'visitor', body, client_msg_id, created_at: new Date().toISOString() },
+              conversation: waiting,
+            });
+        }),
+    );
+    render(<Threadlive transport={transport} />);
+    await openChat();
+
+    type('First');
+    type('Second');
+    await sleep(30);
+    expect(transport.send).toHaveBeenCalledTimes(1);
+
+    finishFirst();
+    await waitFor(() => expect(transport.send).toHaveBeenCalledTimes(2));
+    expect(transport.send.mock.calls[1]?.[0].body).toBe('Second');
+  });
+
   describe('Turnstile', () => {
     afterEach(() => {
       delete window.turnstile;

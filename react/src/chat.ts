@@ -26,6 +26,13 @@ export interface ChatState {
   reconnecting: boolean;
   /** The full history has been fetched once, so later polls ask for what is new. */
   historyLoaded: boolean;
+  /**
+   * Where the next poll starts: the highest id a poll has returned. Never
+   * moved by a send — the visitor's own message can have a higher id than a
+   * reply not fetched yet, and asking for what came after it would skip
+   * that reply.
+   */
+  cursor: number | null;
 }
 
 export const initialChatState: ChatState = {
@@ -37,6 +44,7 @@ export const initialChatState: ChatState = {
   conversation: null,
   reconnecting: false,
   historyLoaded: false,
+  cursor: null,
 };
 
 export type ChatAction =
@@ -78,10 +86,11 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
     case 'received': {
       if (action.conversation === null) {
         // Gone on the server (pruned): start over, keeping what is in flight.
-        return { ...state, messages: [], conversation: null, reconnecting: false, historyLoaded: false };
+        return { ...state, messages: [], conversation: null, reconnecting: false, historyLoaded: false, cursor: null };
       }
 
       const confirmed = new Set(action.messages.map((m) => m.client_msg_id).filter(Boolean));
+      const cursor = action.messages.reduce((max, m) => Math.max(max, m.id), state.cursor ?? 0);
 
       return {
         ...state,
@@ -90,6 +99,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         conversation: action.conversation,
         reconnecting: false,
         historyLoaded: true,
+        cursor: cursor > 0 ? cursor : state.cursor,
       };
     }
 

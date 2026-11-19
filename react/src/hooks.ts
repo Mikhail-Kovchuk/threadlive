@@ -252,9 +252,9 @@ export function useChat({ transport, open, visible, getContext, getTurnstileToke
     let failures = 0;
 
     const lastId = () => {
-      const { messages, historyLoaded } = latest.current;
+      const { cursor, historyLoaded } = latest.current;
 
-      return historyLoaded ? (messages[messages.length - 1]?.id ?? null) : null;
+      return historyLoaded ? cursor : null;
     };
 
     const schedule = () => {
@@ -315,16 +315,36 @@ export function useChat({ transport, open, visible, getContext, getTurnstileToke
     });
   }, [open, visible, lastAgentId, transport]);
 
+  // A guest's first message comes back with the token every later one needs:
+  // sent side by side, two first messages would start two conversations. The
+  // rest wait for the first; `started` knows before the next render does.
+  const firstSend = useRef<Promise<void> | null>(null);
+  const started = useRef(false);
+
   const deliver = useCallback(
     async (body: string, clientMsgId: string, files: File[]) => {
+      const hasConversation = () => started.current || latest.current.conversation !== null;
+
+      while (!hasConversation() && firstSend.current) {
+        await firstSend.current;
+      }
+
+      let release: (() => void) | undefined;
+      if (!hasConversation()) {
+        firstSend.current = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+      }
+
       try {
         const context = {
-          url: window.location.href,
+          // Without the #fragment: sign-in flows keep tokens there
+          // (#access_token=…), and it would end up in the support group.
+          url: window.location.href.split('#')[0] ?? '',
           title: document.title,
           attributes: getContext.current?.() ?? {},
         };
-        const turnstileToken =
-          latest.current.conversation === null && getTurnstileToken ? await getTurnstileToken() : undefined;
+        const turnstileToken = !hasConversation() && getTurnstileToken ? await getTurnstileToken() : undefined;
         const result = await transport.send({
           body,
           client_msg_id: clientMsgId,
@@ -332,6 +352,7 @@ export function useChat({ transport, open, visible, getContext, getTurnstileToke
           ...(files.length > 0 ? { files } : {}),
           ...(turnstileToken ? { turnstile_token: turnstileToken } : {}),
         });
+        started.current = true;
         dispatch({ type: 'sent', clientMsgId, ...result });
       } catch (error) {
         // A 4xx message is written for visitors (e.g. "The message may not be
@@ -341,10 +362,29 @@ export function useChat({ transport, open, visible, getContext, getTurnstileToke
             ? error.message
             : undefined;
         dispatch({ type: 'sendFailed', clientMsgId, error: shown });
+      } finally {
+        if (release) {
+          firstSend.current = null;
+          release();
+        }
       }
     },
     [transport, getContext, getTurnstileToken, latest],
   );
+
+  // The conversation gone on the server (pruned, or the visitor signed out):
+  // the next message starts a new one — ask the backend again what that
+  // needs (e.g. a Turnstile site key).
+  const hadConversation = useRef(false);
+  useEffect(() => {
+    if (state.conversation !== null) {
+      hadConversation.current = true;
+    } else if (hadConversation.current && state.phase === 'ready') {
+      hadConversation.current = false;
+      started.current = false;
+      setAttempt((n) => n + 1);
+    }
+  }, [state.conversation, state.phase]);
 
   const send = useCallback(
     (body: string, files: File[] = []) => {
