@@ -22,6 +22,20 @@ appear.
 | `php artisan schedule:run` (cron, every minute) | Needed: runs maintain and prune |
 | `npm i threadlive-react` | Add the widget |
 
+## In the support group (Telegram)
+
+| Command | What it does |
+|---|---|
+| `/close` | In a conversation's topic: close it (the visitor sees "Conversation closed") |
+| `/translate` | In a topic: translation on for this conversation — visitor messages arrive with a translation into the default language, replies go out in the visitor's language. Again: off |
+| `/translate ru` | The same into another language from `translation.languages` |
+| `/translate off` | Translation off for this conversation |
+| `// text` | An internal note: stays in the topic, never reaches the visitor |
+| `/<your command> <argument>` | The app's own commands (`config('threadlive.commands')`), e.g. `/invoice INV-1042`; without an argument the bot asks for it |
+
+The "/" menu of the group is set by `php artisan threadlive:setup` — run it
+again after changing the commands or the translation setup.
+
 ## Developing the packages
 
 ### `laravel/`
@@ -88,5 +102,12 @@ npm run dev                                         # http://localhost:3020
 ```
 
 After `composer reinstall`, restart `composer dev` (listen and the queue
-worker keep the old code). If `npm run build` fails with "Duplicate
+worker keep the old code).
+
+The package's migration changes in place until the first release. To give
+the Laravel testbed the new schema: stop `composer dev` (a running server
+writes to the same SQLite file), copy
+`../threadlive/laravel/database/migrations/2026_11_18_000000_create_threadlive_tables.php`
+over the testbed's `database/migrations/*_create_threadlive_tables.php`, then
+`php artisan migrate:fresh` and `php artisan threadlive:setup --local`. If `npm run build` fails with "Duplicate
 identifier 'PagesPageConfig'", delete `.next`.
