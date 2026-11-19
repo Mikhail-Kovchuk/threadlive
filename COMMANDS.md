@@ -17,7 +17,8 @@ appear.
 | `php artisan threadlive:status` | The webhook as Telegram sees it (last error, pending updates), conversation counts, messages not delivered |
 | `php artisan threadlive:retry-failed` | Send again the visitor messages delivery gave up on (the dashboard's "⚠️ Not delivered"). `--conversation=12` for one |
 | `php artisan threadlive:test` | Open a test topic in the group, post in it, close it |
-| `php artisan threadlive:maintain` | Auto-close, delete old topics, "⏰ waiting" alerts, dashboard. Scheduled every 5 min by the package |
+| `php artisan threadlive:maintain` | Auto-close, delete old topics, "⏰ waiting" alerts, e-mail unread replies, dashboard. Scheduled every 5 min by the package |
+| `php artisan vendor:publish --tag=threadlive-views` | Copy the offline e-mail's views to `resources/views/vendor/threadlive` to reword or restyle it (its strings also go through `__()`, so `lang/{locale}.json` translates them) |
 | `php artisan threadlive:prune` | Delete conversations past `retention_days` with their files and topics. Scheduled daily |
 | `php artisan queue:work` | Needed: messages go to Telegram from the queue |
 | `php artisan schedule:run` (cron, every minute) | Needed: runs maintain and prune |
