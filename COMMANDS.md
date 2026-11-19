@@ -81,8 +81,21 @@ git tag v0.1.0 && git push origin v0.1.0
 
 `.github/workflows/release.yml` splits `laravel/` into the
 `threadlive-laravel` mirror (needs the `THREADLIVE_LARAVEL_TOKEN` secret) and
-publishes `react/` to npm (the first version by hand: `cd react && npm
-publish`, then trusted publishing).
+publishes `react/` to npm with trusted publishing. Before tagging: a
+`CHANGELOG.md` entry in both `laravel/` and `react/`.
+
+The very first npm version was published by hand, before its tag (trusted
+publishing can only be set up on a package that exists):
+
+```bash
+cd react
+npm version 0.1.0 --no-git-tag-version   # the tag's version; prepare builds dist/
+npm publish
+git checkout package.json package-lock.json
+```
+
+then on npmjs.com → threadlive-react → Settings → Trusted publishing:
+GitHub Actions, `Mikhail-Kovchuk/threadlive`, workflow `release.yml`.
 
 ## Local testbeds
 
@@ -107,10 +120,10 @@ npm run dev                                         # http://localhost:3020
 After `composer reinstall`, restart `composer dev` (listen and the queue
 worker keep the old code).
 
-The package's migration changes in place until the first release. To give
-the Laravel testbed the new schema: stop `composer dev` (a running server
-writes to the same SQLite file), copy
-`../threadlive/laravel/database/migrations/2026_11_18_000000_create_threadlive_tables.php`
-over the testbed's `database/migrations/*_create_threadlive_tables.php`, then
-`php artisan migrate:fresh` and `php artisan threadlive:setup --local`. If `npm run build` fails with "Duplicate
-identifier 'PagesPageConfig'", delete `.next`.
+Since v0.1.0 the package's first migration is released and never edited: a
+schema change is a new migration (published by `threadlive:install`, and
+announced in the CHANGELOG). To rebuild the testbed's database from
+scratch: stop `composer dev` first (a running server writes to the same
+SQLite file), then `php artisan migrate:fresh` and
+`php artisan threadlive:setup --local`. If `npm run build` fails with
+"Duplicate identifier 'PagesPageConfig'", delete `.next`.
