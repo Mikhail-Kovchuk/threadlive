@@ -48,6 +48,8 @@ export const DEFAULT_TEXTS: ThreadliveTexts = {
   tooManyFiles: 'Up to {max} files in one message.',
   dropFiles: 'Drop files to send them',
   aFile: '📎 A file',
+  home: 'Home',
+  continueConversation: 'Continue the conversation',
 };
 
 /** Fills `{name}` placeholders; an unknown one is left as written. */

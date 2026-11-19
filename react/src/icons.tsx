@@ -81,6 +81,28 @@ export function DeliveredIcon({ size = 16 }: IconProps) {
   );
 }
 
+export function HomeIcon({ size = 20 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <path
+        d="M4 11.5 12 5l8 6.5M6 10v9h4.5v-5h3v5H18v-9"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+export function ChevronRightIcon({ size = 18 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <path d="m9 6 6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export function PaperclipIcon({ size = 22 }: IconProps) {
   return (
     <svg {...base(size)}>

@@ -16,6 +16,8 @@ import {
   ChatIcon,
   ClipboardIcon,
   ChevronDownIcon,
+  ChevronRightIcon,
+  HomeIcon,
   ChevronLeftIcon,
   ClockIcon,
   CloseIcon,
@@ -154,9 +156,11 @@ interface HeaderProps {
   hours: SupportHours | null;
   fallbackUrl?: string;
   onClose: () => void;
+  /** Back to the first screen; null when already there (or there is nothing else). */
+  onHome: (() => void) | null;
 }
 
-export function Header({ texts, logo, online, hours, fallbackUrl, onClose }: HeaderProps) {
+export function Header({ texts, logo, online, hours, fallbackUrl, onClose, onHome }: HeaderProps) {
   const status =
     online === null
       ? null
@@ -184,6 +188,11 @@ export function Header({ texts, logo, online, hours, fallbackUrl, onClose }: Hea
           </p>
         )}
       </div>
+      {onHome && (
+        <button type="button" className="tl-icon-btn" aria-label={texts.home} title={texts.home} onClick={onHome}>
+          <HomeIcon />
+        </button>
+      )}
       {fallbackUrl && (
         <a
           className="tl-icon-btn"
@@ -211,15 +220,32 @@ interface WelcomeProps {
   agents: string[];
   topics: string[];
   onTopic: ((topic: string) => void) | null;
+  /** The conversation there already is: its last message, and the way back to it. */
+  last?: { label: string; body: string; at: string } | null;
+  onContinue?: (() => void) | null;
 }
 
-export function Welcome({ texts, hours, agents, topics, onTopic }: WelcomeProps) {
+export function Welcome({ texts, hours, agents, topics, onTopic, last = null, onContinue = null }: WelcomeProps) {
   return (
     <div className="tl-welcome">
       <div className="tl-welcome-intro">
         <p className="tl-greeting">{texts.greeting}</p>
         <p className="tl-intro">{texts.intro}</p>
       </div>
+
+      {onContinue && (
+        <button type="button" className="tl-continue" onClick={onContinue}>
+          <span className="tl-continue-text">
+            <span className="tl-continue-title">💬 {texts.continueConversation}</span>
+            {last && (
+              <span className="tl-continue-last">
+                {last.label}: {last.body} · {timeOf(last.at)}
+              </span>
+            )}
+          </span>
+          <ChevronRightIcon />
+        </button>
+      )}
 
       <div className="tl-team">
         {agents.length > 0 && (

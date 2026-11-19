@@ -180,6 +180,8 @@ export interface DemoTransportOptions {
   contextLine?: (context: SendContext | undefined) => string | null;
   /** The first screen's buttons, as config('threadlive.topics') would serve them. */
   topics?: string[];
+  /** The header's link out, as config('threadlive.fallback') would serve it. */
+  fallback?: { url: string; label: string | null } | null;
 }
 
 const DEMO_REPLIES = [
@@ -202,6 +204,7 @@ export function createDemoTransport(options: DemoTransportOptions = {}): Threadl
     replyAfterMs = 2500,
     contextLine,
     topics = [],
+    fallback = null,
   } = options;
 
   const messages: ChatMessage[] = [];
@@ -250,6 +253,7 @@ export function createDemoTransport(options: DemoTransportOptions = {}): Threadl
         can_write: true,
         poll_ms: { open: 1500, closed: 5000, idle: 15000, idle_after: 300000 },
         topics,
+        fallback,
         attachments: {
           enabled: true,
           max_kb: 10240,

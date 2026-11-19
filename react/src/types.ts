@@ -86,6 +86,8 @@ export interface Bootstrap {
   /** Buttons on the first screen (config threadlive.topics); the `topics` prop overrides them. */
   topics: string[];
   max_message_length: number;
+  /** The header's "go elsewhere" button (config threadlive.fallback); null for none. */
+  fallback: { url: string; label: string | null } | null;
   attachments: AttachmentRules;
   /** Shown as "Maria · Support", or alone when agent names are hidden. */
   agent_display_name: string;
@@ -160,7 +162,10 @@ interface CommonProps {
    * them needs no frontend release; this overrides that list.
    */
   topics?: string[];
-  /** A link out of the widget, e.g. your Telegram support account. */
+  /**
+   * The header's link out of the widget, e.g. your Telegram support account.
+   * Usually set on the server (config threadlive.fallback); this overrides it.
+   */
   fallbackUrl?: string;
   /** Attributes of the page sent with each message, e.g. the code of the record on it. */
   getContext?: () => Record<string, unknown>;
@@ -280,4 +285,7 @@ export interface ThreadliveTexts {
   dropFiles: string;
   /** Shown for a reply that is only a file, e.g. in the preview. */
   aFile: string;
+  /** The header button back to the first screen. */
+  home: string;
+  continueConversation: string;
 }

@@ -71,6 +71,9 @@ const Widget = forwardRef<ThreadliveHandle, ThreadliveProps>(function Widget(pro
   );
 
   const [open, setOpen] = useState(false);
+  // 'home': the first screen (greeting, topics, "Continue the conversation");
+  // 'chat': the conversation.
+  const [view, setView] = useState<'home' | 'chat'>('chat');
   const [draft, setDraft] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [fileErrors, setFileErrors] = useState<string[]>([]);
@@ -80,6 +83,7 @@ const Widget = forwardRef<ThreadliveHandle, ThreadliveProps>(function Widget(pro
   const visible = useDocumentVisible();
   const chat = useChat({ transport, open, visible, getContext });
   const { state, unread } = chat;
+  const latestConversation = useLatest(state.conversation);
 
   const rootRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLElement>(null);
@@ -106,6 +110,16 @@ const Widget = forwardRef<ThreadliveHandle, ThreadliveProps>(function Widget(pro
 
   // Focus: into the panel on opening, back to the launcher on closing when it
   // was inside the widget (not when the host closed it from elsewhere).
+  // On opening: a conversation going on opens itself; a closed one (or
+  // none) opens on the first screen — a question a week later starts fresh,
+  // with the history one tap away.
+  useEffect(() => {
+    if (open) {
+      const conversation = latestConversation.current;
+      setView(conversation !== null && conversation.status !== 'closed' ? 'chat' : 'home');
+    }
+  }, [open]);
+
   const wasOpen = useRef(false);
   useEffect(() => {
     if (open) {
@@ -162,11 +176,24 @@ const Widget = forwardRef<ThreadliveHandle, ThreadliveProps>(function Widget(pro
     setFileErrors(checked.errors);
   };
 
-  const sendMessage = (body: string, toSend: File[]) => {
+  // Whatever is sent — from the field or a topic — continues in the chat.
+  const sendMessage = (body: string, toSend: File[] = []) => {
     chat.send(body, toSend);
     setFiles([]);
     setFileErrors([]);
+    setView('chat');
   };
+
+  // The header's link out: the page's prop, else the server's config.
+  const fallbackLink = fallbackUrl ?? bootstrap?.fallback?.url;
+  const headerTexts =
+    props.texts?.continueElsewhere === undefined && bootstrap?.fallback?.label
+      ? { ...texts, continueElsewhere: bootstrap.fallback.label }
+      : texts;
+
+  const hasHistory = state.conversation !== null || state.messages.length > 0 || state.pending.length > 0;
+  const showHome = !hasHistory || view === 'home';
+  const lastMessage = findLast(state.messages, (m) => m.direction === 'agent' || m.direction === 'visitor');
 
   // Files dropped anywhere on the panel.
   const dropHandlers = attachmentRules
@@ -218,12 +245,13 @@ const Widget = forwardRef<ThreadliveHandle, ThreadliveProps>(function Widget(pro
             </div>
           )}
           <Header
-            texts={texts}
+            texts={headerTexts}
             logo={logo}
             online={bootstrap ? bootstrap.online : null}
             hours={bootstrap?.hours ?? null}
-            fallbackUrl={fallbackUrl}
+            fallbackUrl={fallbackLink}
             onClose={closePanel}
+            onHome={hasHistory && !showHome ? () => setView('home') : null}
           />
 
           {state.phase !== 'ready' || !bootstrap ? (
@@ -247,14 +275,24 @@ const Widget = forwardRef<ThreadliveHandle, ThreadliveProps>(function Widget(pro
                 </p>
               )}
 
-              {state.conversation === null && state.messages.length === 0 && state.pending.length === 0 ? (
+              {showHome ? (
                 <div className="tl-body">
                   <Welcome
                     texts={texts}
                     hours={bootstrap.hours}
                     agents={agents}
                     topics={props.topics ?? bootstrap.topics ?? []}
-                    onTopic={bootstrap.can_write ? chat.send : null}
+                    onTopic={bootstrap.can_write ? (topic) => sendMessage(topic) : null}
+                    onContinue={hasHistory ? () => setView('chat') : null}
+                    last={
+                      lastMessage
+                        ? {
+                            label: lastMessage.direction === 'visitor' ? texts.you : (lastMessage.author ?? agentName),
+                            body: lastMessage.body !== '' ? lastMessage.body : texts.aFile,
+                            at: lastMessage.created_at,
+                          }
+                        : null
+                    }
                   />
                 </div>
               ) : (

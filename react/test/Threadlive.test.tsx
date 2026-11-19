@@ -24,6 +24,7 @@ function boot(overrides: Partial<Bootstrap> = {}): Bootstrap {
     poll_ms: { open: 1000, closed: 5000, idle: 5000, idle_after: 300000 },
     topics: [],
     max_message_length: 2000,
+    fallback: null,
     attachments: { enabled: true, max_kb: 1024, max_files: 2, accept: ['image/png', 'application/pdf'] },
     agent_display_name: 'Support',
     conversation: null,
@@ -295,6 +296,85 @@ describe('Threadlive', () => {
 
     fireEvent.keyDown(document.body, { key: 'a' });
     await waitFor(() => expect(transport.messages.mock.calls.length).toBeGreaterThan(whileIdle));
+  });
+
+  it('shows the header link the server configured, unless the page passes its own; none without either', async () => {
+    const fromServer = { url: 'https://t.me/acme_support', label: 'Write to us in Telegram' };
+
+    render(<Threadlive transport={fakeTransport(boot({ fallback: fromServer }))} />);
+    await openChat();
+    expect(screen.getByRole('link', { name: 'Write to us in Telegram' }).getAttribute('href')).toBe('https://t.me/acme_support');
+    cleanup();
+
+    render(<Threadlive transport={fakeTransport(boot({ fallback: fromServer }))} fallbackUrl="mailto:help@acme.test" />);
+    await openChat();
+    expect(screen.getByRole('link', { name: 'Write to us in Telegram' }).getAttribute('href')).toBe('mailto:help@acme.test');
+    cleanup();
+
+    render(<Threadlive transport={fakeTransport()} />);
+    await openChat();
+    expect(screen.queryByRole('link')).toBeNull();
+  });
+
+  describe('the first screen', () => {
+    const answered = (status: ConversationState['status']) => {
+      const transport = fakeTransport(
+        boot({ conversation: { status, unread: 0, active: status !== 'closed' }, topics: ['Billing', 'Something else'] }),
+      );
+      transport.messages.mockResolvedValue({
+        messages: [agentMessage(5, 'Your order is on its way.')],
+        conversation: { status, unread: 0, active: status !== 'closed' },
+      });
+
+      return transport;
+    };
+
+    it('opens a conversation going on, with Home leading back to the topics', async () => {
+      const transport = answered('answered');
+      render(<Threadlive transport={transport} />);
+      await openChat();
+
+      expect(await screen.findByText('Your order is on its way.')).toBeTruthy();
+      fireEvent.click(screen.getByRole('button', { name: 'Home' }));
+
+      expect(screen.getByRole('button', { name: 'Billing' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: /Continue the conversation/ }).textContent).toContain(
+        'Maria: Your order is on its way.',
+      );
+    });
+
+    it('sends a topic chosen there into the same conversation, and shows it', async () => {
+      const transport = answered('answered');
+      render(<Threadlive transport={transport} />);
+      await openChat();
+      await screen.findByText('Your order is on its way.');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Home' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Billing' }));
+
+      await waitFor(() => expect(transport.send).toHaveBeenCalledWith(expect.objectContaining({ body: 'Billing' })));
+      expect(screen.queryByRole('button', { name: 'Billing' })).toBeNull();
+      expect(screen.getByText('Your order is on its way.')).toBeTruthy();
+    });
+
+    it('opens on the first screen once the conversation was closed, the history one tap away', async () => {
+      render(<Threadlive transport={answered('closed')} />);
+      await openChat();
+
+      expect(screen.getByRole('button', { name: 'Billing' })).toBeTruthy();
+      fireEvent.click(await screen.findByRole('button', { name: /Continue the conversation/ }));
+
+      expect(await screen.findByText('Your order is on its way.')).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Billing' })).toBeNull();
+    });
+
+    it('has no Home button before there is anything else to go to', async () => {
+      render(<Threadlive transport={fakeTransport()} />);
+      await openChat();
+
+      expect(screen.queryByRole('button', { name: 'Home' })).toBeNull();
+      expect(screen.queryByRole('button', { name: /Continue the conversation/ })).toBeNull();
+    });
   });
 
   describe('files', () => {
