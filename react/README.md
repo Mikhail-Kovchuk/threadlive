@@ -75,6 +75,15 @@ away for `poll_ms.idle_after`. Turn either off:
 <Threadlive apiUrl={apiUrl} notify={{ sound: false }} />
 ```
 
+### Spam protection
+
+With Cloudflare Turnstile keys set on the backend (`THREADLIVE_TURNSTILE_SITE_KEY`,
+`THREADLIVE_TURNSTILE_SECRET`), a guest's first message carries a Turnstile
+check. The widget loads Cloudflare's script only then, and the check stays
+invisible unless Cloudflare wants a click. A Content-Security-Policy on your
+site must allow `https://challenges.cloudflare.com` in `script-src` and
+`frame-src`.
+
 ## License
 
 [MIT](LICENSE)

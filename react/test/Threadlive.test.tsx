@@ -215,6 +215,62 @@ describe('Threadlive', () => {
     expect(onUnreadChange).toHaveBeenLastCalledWith(0);
   });
 
+  describe('Turnstile', () => {
+    afterEach(() => {
+      delete window.turnstile;
+    });
+
+    function fakeTurnstile() {
+      let issued = 0;
+      const api = {
+        render: vi.fn((_el: HTMLElement, options: { callback?: (token: string) => void }) => {
+          api.issue = () => options.callback?.(`token-${++issued}`);
+          setTimeout(api.issue, 0);
+          return 'w1';
+        }),
+        reset: vi.fn(() => setTimeout(api.issue, 0)),
+        remove: vi.fn(),
+        issue: () => {},
+      };
+      window.turnstile = api;
+
+      return api;
+    }
+
+    it('sends a fresh token with a guest\'s first message, and drops the check after it', async () => {
+      const api = fakeTurnstile();
+      const transport = fakeTransport(boot({ turnstile_site_key: 'site-key' }));
+      render(<Threadlive transport={transport} />);
+      await openChat();
+      await waitFor(() => expect(api.render).toHaveBeenCalledWith(expect.any(HTMLElement), expect.objectContaining({ sitekey: 'site-key' })));
+
+      type('Hello');
+
+      await waitFor(() =>
+        expect(transport.send).toHaveBeenCalledWith(expect.objectContaining({ body: 'Hello', turnstile_token: 'token-1' })),
+      );
+      expect(api.reset).toHaveBeenCalledWith('w1');
+      await waitFor(() => expect(api.remove).toHaveBeenCalledWith('w1'));
+
+      type('And more');
+      await waitFor(() => expect(transport.send).toHaveBeenCalledTimes(2));
+      expect(transport.send.mock.calls[1]?.[0]).not.toHaveProperty('turnstile_token');
+    });
+
+    it('asks nothing when the backend sends no site key', async () => {
+      const api = fakeTurnstile();
+      const transport = fakeTransport();
+      render(<Threadlive transport={transport} />);
+      await openChat();
+
+      type('Hello');
+
+      await waitFor(() => expect(transport.send).toHaveBeenCalled());
+      expect(transport.send.mock.calls[0]?.[0]).not.toHaveProperty('turnstile_token');
+      expect(api.render).not.toHaveBeenCalled();
+    });
+  });
+
   it('collapses a long message behind "Show more"', async () => {
     const long = Array.from({ length: 20 }, (_, i) => `Step ${i + 1}: do the thing.`).join('\n');
     const transport = fakeTransport(boot({ conversation: { status: 'answered', unread: 0, active: true } }));

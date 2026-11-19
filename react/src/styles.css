@@ -646,6 +646,17 @@
   overflow-wrap: anywhere;
 }
 
+/* Cloudflare Turnstile: empty unless Cloudflare wants a click. */
+.tl-turnstile {
+  display: flex;
+  justify-content: center;
+  padding: 0 12px;
+}
+
+.tl-turnstile:has(iframe) {
+  padding-top: 8px;
+}
+
 /* A long message: its first lines, then "Show more". */
 .tl-bubble-text.tl-clamped {
   display: -webkit-box;

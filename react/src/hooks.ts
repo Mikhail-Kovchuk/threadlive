@@ -174,6 +174,8 @@ interface UseChatOptions {
   open: boolean;
   visible: boolean;
   getContext: { current: (() => Record<string, unknown>) | undefined };
+  /** Cloudflare Turnstile's token, asked for while there is no conversation yet. */
+  getTurnstileToken?: () => Promise<string | undefined>;
 }
 
 /**
@@ -195,7 +197,7 @@ interface UseChatOptions {
  * wrote last (status waiting). Idle: no input for poll_ms.idle_after — in a
  * hidden tab that is simply time since they left it.
  */
-export function useChat({ transport, open, visible, getContext }: UseChatOptions) {
+export function useChat({ transport, open, visible, getContext, getTurnstileToken }: UseChatOptions) {
   const [state, dispatch] = useReducer(chatReducer, initialChatState);
   const latest = useLatest(state);
   const [attempt, setAttempt] = useState(0);
@@ -321,11 +323,14 @@ export function useChat({ transport, open, visible, getContext }: UseChatOptions
           title: document.title,
           attributes: getContext.current?.() ?? {},
         };
+        const turnstileToken =
+          latest.current.conversation === null && getTurnstileToken ? await getTurnstileToken() : undefined;
         const result = await transport.send({
           body,
           client_msg_id: clientMsgId,
           context,
           ...(files.length > 0 ? { files } : {}),
+          ...(turnstileToken ? { turnstile_token: turnstileToken } : {}),
         });
         dispatch({ type: 'sent', clientMsgId, ...result });
       } catch (error) {
@@ -338,7 +343,7 @@ export function useChat({ transport, open, visible, getContext }: UseChatOptions
         dispatch({ type: 'sendFailed', clientMsgId, error: shown });
       }
     },
-    [transport, getContext],
+    [transport, getContext, getTurnstileToken, latest],
   );
 
   const send = useCallback(

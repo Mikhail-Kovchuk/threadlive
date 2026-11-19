@@ -104,6 +104,7 @@ export function createHttpTransport({ apiUrl, getAuthHeaders }: HttpTransportOpt
         form.append('body', input.body);
         form.append('client_msg_id', input.client_msg_id);
         if (input.context) form.append('context', JSON.stringify(input.context));
+        if (input.turnstile_token) form.append('turnstile_token', input.turnstile_token);
         for (const file of files) form.append('files[]', file, file.name);
         body = form;
       }

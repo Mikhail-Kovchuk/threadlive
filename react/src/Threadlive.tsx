@@ -18,6 +18,7 @@ import { findLast, useAttention, useChat, useDocumentVisible, useLatest, useMedi
 import { Composer, EmailCard, Header, Launcher, MessageList, Preview, Welcome, agentLabel } from './parts.js';
 import { DEFAULT_TEXTS } from './texts.js';
 import { createHttpTransport } from './transport.js';
+import { useTurnstile } from './turnstile.js';
 import type { ThreadliveHandle, ThreadliveProps, ThreadliveTheme } from './types.js';
 
 const THEME_VARIABLES = {
@@ -81,8 +82,15 @@ const Widget = forwardRef<ThreadliveHandle, ThreadliveProps>(function Widget(pro
   const [dismissedPreview, setDismissedPreview] = useState<number | null>(null);
   const isPhone = useMediaQuery(PHONE_QUERY);
   const visible = useDocumentVisible();
-  const chat = useChat({ transport, open, visible, getContext });
+  // Turnstile needs the bootstrap's site key, which useChat fetches; useChat
+  // needs Turnstile's token. A stable function over a ref joins the two.
+  const turnstileToken = useRef<() => Promise<string | undefined>>(async () => undefined);
+  const getTurnstileToken = useCallback(() => turnstileToken.current(), []);
+  const chat = useChat({ transport, open, visible, getContext, getTurnstileToken });
   const { state, unread } = chat;
+  const turnstileSiteKey = state.conversation === null ? (state.bootstrap?.turnstile_site_key ?? null) : null;
+  const turnstile = useTurnstile(turnstileSiteKey);
+  turnstileToken.current = turnstile.getToken;
   const latestConversation = useLatest(state.conversation);
 
   useAttention(unread, open, visible, state.phase === 'ready', {
@@ -320,6 +328,9 @@ const Widget = forwardRef<ThreadliveHandle, ThreadliveProps>(function Widget(pro
                     )}
                 </MessageList>
               )}
+
+              {/* Shows itself only when Cloudflare wants a click. */}
+              {turnstileSiteKey && bootstrap.can_write && <div className="tl-turnstile" ref={turnstile.ref} />}
 
               <Composer
                 ref={inputRef}

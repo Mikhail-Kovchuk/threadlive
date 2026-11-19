@@ -91,6 +91,12 @@ export interface Bootstrap {
   attachments: AttachmentRules;
   /** Shown as "Maria · Support", or alone when agent names are hidden. */
   agent_display_name: string;
+  /**
+   * Cloudflare Turnstile's site key when the first message needs its check
+   * (a guest with no conversation, and the backend has Turnstile on); null
+   * otherwise.
+   */
+  turnstile_site_key?: string | null;
   /** This visitor's conversation, if there is one. */
   conversation: ConversationState | null;
 }
@@ -110,6 +116,8 @@ export interface SendInput {
   context?: SendContext;
   /** Sent as multipart when there are any. */
   files?: File[];
+  /** Cloudflare Turnstile's answer, with a guest's first message. */
+  turnstile_token?: string;
 }
 
 export interface SendResult {
