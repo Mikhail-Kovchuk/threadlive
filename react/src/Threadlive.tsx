@@ -51,7 +51,7 @@ export const Threadlive = forwardRef<ThreadliveHandle, ThreadliveProps>(function
 });
 
 const Widget = forwardRef<ThreadliveHandle, ThreadliveProps>(function Widget(props, ref) {
-  const { theme, position = 'right', logo, agents = [], fallbackUrl } = props;
+  const { theme, position = 'right', logo, agents = [], fallbackUrl, launcher = 'pill', launcherIcon } = props;
   const texts = { ...DEFAULT_TEXTS, ...props.texts };
 
   // Read through refs: an inline function from the host must not rebuild the
@@ -338,7 +338,9 @@ const Widget = forwardRef<ThreadliveHandle, ThreadliveProps>(function Widget(pro
         </section>
       )}
 
-      {preview && (
+      {/* With the site's own button ('none') there is nothing to anchor the
+          preview to: the site shows unread replies its own way. */}
+      {preview && launcher !== 'none' && (
         <Preview
           message={preview}
           label={agentLabel(preview.author, agentName)}
@@ -348,14 +350,18 @@ const Widget = forwardRef<ThreadliveHandle, ThreadliveProps>(function Widget(pro
         />
       )}
 
-      <Launcher
-        ref={launcherRef}
-        open={open}
-        unread={unread}
-        panelId={panelId}
-        texts={texts}
-        onClick={open ? closePanel : openPanel}
-      />
+      {launcher !== 'none' && (
+        <Launcher
+          ref={launcherRef}
+          open={open}
+          unread={unread}
+          panelId={panelId}
+          texts={texts}
+          variant={launcher}
+          icon={launcherIcon}
+          onClick={open ? closePanel : openPanel}
+        />
+      )}
     </div>
   );
 });

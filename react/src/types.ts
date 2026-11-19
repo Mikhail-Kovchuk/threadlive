@@ -154,6 +154,16 @@ interface CommonProps {
   position?: 'right' | 'left';
   /** Shown in the header's round badge; the title's initial otherwise. */
   logo?: ReactNode;
+  /**
+   * The button that opens the chat:
+   * 'pill' (default) — icon and `texts.launcher`, round on phones;
+   * 'icon' — round, icon only, everywhere;
+   * 'none' — no button: put your own anywhere, open the chat with
+   * `ref.current.open()`, and show the unread count from `onUnreadChange`.
+   */
+  launcher?: 'pill' | 'icon' | 'none';
+  /** Your own icon in the launcher, instead of the chat bubble. */
+  launcherIcon?: ReactNode;
   /** Agent names for the avatars on the first screen. */
   agents?: string[];
   /**

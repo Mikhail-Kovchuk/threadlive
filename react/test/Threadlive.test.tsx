@@ -1,4 +1,5 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { createRef } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   Threadlive,
@@ -9,6 +10,7 @@ import {
   type MessagesResult,
   type SendInput,
   type SendResult,
+  type ThreadliveHandle,
 } from '../src/index.js';
 
 afterEach(cleanup);
@@ -314,6 +316,43 @@ describe('Threadlive', () => {
     render(<Threadlive transport={fakeTransport()} />);
     await openChat();
     expect(screen.queryByRole('link')).toBeNull();
+  });
+
+  describe('the launcher', () => {
+    it('is a pill with the text by default', async () => {
+      render(<Threadlive transport={fakeTransport()} />);
+
+      const button = await launcher();
+      expect(button.textContent).toContain('Chat with us');
+      expect(button.getAttribute('data-variant')).toBe('pill');
+    });
+
+    it('can be a round icon-only button, with the site\'s own icon', async () => {
+      render(
+        <Threadlive transport={fakeTransport()} launcher="icon" launcherIcon={<svg data-testid="own-icon" />} />,
+      );
+
+      const button = await launcher();
+      expect(button.getAttribute('data-variant')).toBe('icon');
+      expect(button.textContent).not.toContain('Chat with us');
+      expect(screen.getByTestId('own-icon')).toBeTruthy();
+    });
+
+    it('can be left out, for the site\'s own button to open the chat', async () => {
+      const ref = createRef<ThreadliveHandle>();
+      const transport = fakeTransport();
+      render(<Threadlive transport={transport} launcher="none" ref={ref} />);
+      await waitFor(() => expect(transport.bootstrap).toHaveBeenCalled());
+      await sleep(10);
+
+      expect(screen.queryByRole('button', { name: 'Open support chat' })).toBeNull();
+
+      act(() => ref.current?.open());
+      expect(await screen.findByRole('dialog', { name: 'Support' })).toBeTruthy();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Minimise chat' }));
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
   });
 
   describe('the first screen', () => {

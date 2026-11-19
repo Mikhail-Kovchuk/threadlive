@@ -84,11 +84,16 @@ interface LauncherProps {
   panelId: string;
   texts: ThreadliveTexts;
   onClick: () => void;
+  variant: 'pill' | 'icon';
+  icon?: ReactNode;
 }
 
-/** A pill on wide screens, a round button on phones (CSS); the close button while open. */
+/**
+ * A pill on wide screens and a round button on phones (CSS), or round
+ * everywhere ('icon'); the close button while open.
+ */
 export const Launcher = forwardRef<HTMLButtonElement, LauncherProps>(function Launcher(
-  { open, unread, panelId, texts, onClick },
+  { open, unread, panelId, texts, onClick, variant, icon },
   ref,
 ) {
   const label = open ? texts.close : unread > 0 ? format(texts.openWithUnread, { count: unread }) : texts.open;
@@ -99,6 +104,7 @@ export const Launcher = forwardRef<HTMLButtonElement, LauncherProps>(function La
       type="button"
       className="tl-launcher"
       data-open={open ? 'true' : 'false'}
+      data-variant={variant}
       aria-label={label}
       aria-expanded={open}
       aria-controls={open ? panelId : undefined}
@@ -108,8 +114,10 @@ export const Launcher = forwardRef<HTMLButtonElement, LauncherProps>(function La
         <CloseIcon />
       ) : (
         <>
-          <ChatIcon />
-          <span className="tl-launcher-label">{texts.launcher}</span>
+          <span className="tl-launcher-icon" aria-hidden="true">
+            {icon ?? <ChatIcon />}
+          </span>
+          {variant === 'pill' && <span className="tl-launcher-label">{texts.launcher}</span>}
         </>
       )}
       {!open && unread > 0 && (
