@@ -22,6 +22,7 @@ function boot(overrides: Partial<Bootstrap> = {}): Bootstrap {
     hours: { from: '09:00', to: '23:00', tz: 'UTC' },
     can_write: true,
     poll_ms: { open: 1000, closed: 5000, idle: 5000, idle_after: 300000 },
+    topics: [],
     max_message_length: 2000,
     agent_display_name: 'Support',
     conversation: null,
@@ -164,6 +165,20 @@ describe('Threadlive', () => {
     const card = await screen.findByText('About order DE-260826-WA · Germany');
     const message = screen.getByText('Is the withdrawal still pending?');
     expect(card.compareDocumentPosition(message) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('shows the topics the server configured, unless the page passes its own', async () => {
+    render(<Threadlive transport={fakeTransport(boot({ topics: ['Billing', 'Something else'] }))} />);
+    await openChat();
+
+    expect(screen.getByRole('button', { name: 'Billing' })).toBeTruthy();
+    cleanup();
+
+    render(<Threadlive transport={fakeTransport(boot({ topics: ['Billing'] }))} topics={['Only this']} />);
+    await openChat();
+
+    expect(screen.queryByRole('button', { name: 'Billing' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Only this' })).toBeTruthy();
   });
 
   it('sends a topic as the first message', async () => {

@@ -151,6 +151,8 @@ export interface DemoTransportOptions {
    * a card is added before a message whenever the line changes.
    */
   contextLine?: (context: SendContext | undefined) => string | null;
+  /** The first screen's buttons, as config('threadlive.topics') would serve them. */
+  topics?: string[];
 }
 
 const DEMO_REPLIES = [
@@ -172,6 +174,7 @@ export function createDemoTransport(options: DemoTransportOptions = {}): Threadl
     latencyMs = 400,
     replyAfterMs = 2500,
     contextLine,
+    topics = [],
   } = options;
 
   const messages: ChatMessage[] = [];
@@ -219,6 +222,7 @@ export function createDemoTransport(options: DemoTransportOptions = {}): Threadl
         hours,
         can_write: true,
         poll_ms: { open: 1500, closed: 5000, idle: 15000, idle_after: 300000 },
+        topics,
         max_message_length: 2000,
         agent_display_name: 'Support',
         conversation: snapshot(),

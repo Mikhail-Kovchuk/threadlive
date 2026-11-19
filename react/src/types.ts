@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 
 /**
  * `context`: a card about what the conversation is about from here on, e.g.
- * "About order DE-260826-WA · Germany · Skrill" — written by the backend
+ * "About invoice INV-1042" — written by the backend (ChatHost::contextLine)
  * from the page the visitor wrote on.
  */
 export type MessageDirection = 'visitor' | 'agent' | 'system' | 'context';
@@ -61,6 +61,8 @@ export interface Bootstrap {
    * idle — and stops polling altogether while the panel is closed.
    */
   poll_ms: { open: number; closed: number; idle: number; idle_after: number };
+  /** Buttons on the first screen (config threadlive.topics); the `topics` prop overrides them. */
+  topics: string[];
   max_message_length: number;
   /** Shown as "Maria · Support", or alone when agent names are hidden. */
   agent_display_name: string;
@@ -72,7 +74,7 @@ export interface Bootstrap {
 export interface SendContext {
   url: string;
   title: string;
-  /** What the page's `getContext` returned, e.g. `{ order: 'DE-260826-WA' }`. */
+  /** What the page's `getContext` returned, e.g. `{ invoice: 'INV-1042' }`. */
   attributes: Record<string, unknown>;
 }
 
@@ -127,11 +129,15 @@ interface CommonProps {
   logo?: ReactNode;
   /** Agent names for the avatars on the first screen. */
   agents?: string[];
-  /** Buttons on the first screen; pressing one sends it as the first message. */
+  /**
+   * Buttons on the first screen; pressing one sends it as the first message.
+   * Usually set on the server (config threadlive.topics) so that changing
+   * them needs no frontend release; this overrides that list.
+   */
   topics?: string[];
   /** A link out of the widget, e.g. your Telegram support account. */
   fallbackUrl?: string;
-  /** Attributes of the page sent with each message, e.g. an order code. */
+  /** Attributes of the page sent with each message, e.g. the code of the record on it. */
   getContext?: () => Record<string, unknown>;
   /** Called whenever the number of unread replies changes. */
   onUnreadChange?: (count: number) => void;

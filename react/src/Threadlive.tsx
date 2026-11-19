@@ -49,7 +49,7 @@ export const Threadlive = forwardRef<ThreadliveHandle, ThreadliveProps>(function
 });
 
 const Widget = forwardRef<ThreadliveHandle, ThreadliveProps>(function Widget(props, ref) {
-  const { theme, position = 'right', logo, agents = [], topics = [], fallbackUrl } = props;
+  const { theme, position = 'right', logo, agents = [], fallbackUrl } = props;
   const texts = { ...DEFAULT_TEXTS, ...props.texts };
 
   // Read through refs: an inline function from the host must not rebuild the
@@ -207,7 +207,7 @@ const Widget = forwardRef<ThreadliveHandle, ThreadliveProps>(function Widget(pro
                     texts={texts}
                     hours={bootstrap.hours}
                     agents={agents}
-                    topics={topics}
+                    topics={props.topics ?? bootstrap.topics ?? []}
                     onTopic={bootstrap.can_write ? chat.send : null}
                   />
                 </div>
