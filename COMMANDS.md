@@ -31,6 +31,7 @@ appear.
 | `/translate` | In a topic: translation on for this conversation — visitor messages arrive with a translation into the default language, replies go out in the visitor's language. Again: off |
 | `/translate ru` | The same into another language from `translation.languages` |
 | `/translate off` | Translation off for this conversation |
+| `/find 12` · `/find anna@example.com` · `/find refund` | Anywhere: conversations by number, e-mail, name or words from the messages — newest 10, each linked to its topic |
 | `// text` | An internal note: stays in the topic, never reaches the visitor |
 | `/<your command> <argument>` | The app's own commands (`config('threadlive.commands')`), e.g. `/invoice INV-1042`; without an argument the bot asks for it |
 
