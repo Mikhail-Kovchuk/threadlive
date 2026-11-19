@@ -50,6 +50,8 @@ export const DEFAULT_TEXTS: ThreadliveTexts = {
   aFile: '📎 A file',
   home: 'Home',
   continueConversation: 'Continue the conversation',
+  showMore: 'Show more',
+  showLess: 'Show less',
 };
 
 /** Fills `{name}` placeholders; an unknown one is left as written. */

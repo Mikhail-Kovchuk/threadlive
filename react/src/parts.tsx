@@ -76,6 +76,44 @@ export function agentLabel(author: string | null | undefined, displayName: strin
   return author ? `${author} · ${displayName}` : displayName;
 }
 
+/** Longer than this (characters, or lines as written), a message starts collapsed. */
+const LONG_CHARS = 700;
+const LONG_LINES = 12;
+
+export function isLong(body: string): boolean {
+  return body.length > LONG_CHARS || body.split('\n').length > LONG_LINES;
+}
+
+/**
+ * A message's text. A long one — a pasted log, a whole policy — shows its
+ * first lines and "Show more", so it does not push the conversation away.
+ */
+function Bubble({ body, texts, prefix }: { body: string; texts: ThreadliveTexts; prefix?: ReactNode }) {
+  const long = isLong(body);
+  const [expanded, setExpanded] = useState(false);
+  const id = useId();
+
+  return (
+    <div className="tl-bubble">
+      {prefix}
+      <div id={id} className={long && !expanded ? 'tl-bubble-text tl-clamped' : 'tl-bubble-text'}>
+        {body}
+      </div>
+      {long && (
+        <button
+          type="button"
+          className="tl-more"
+          aria-expanded={expanded}
+          aria-controls={id}
+          onClick={() => setExpanded((value) => !value)}
+        >
+          {expanded ? texts.showLess : texts.showMore}
+        </button>
+      )}
+    </div>
+  );
+}
+
 // --- Launcher ---------------------------------------------------------------------
 
 interface LauncherProps {
@@ -363,10 +401,7 @@ export function MessageList({ messages, pending, texts, agentDisplayName, onRetr
             <div key={row.key} className="tl-msg tl-msg-visitor">
               <MessageFiles files={item.files} />
               {item.body !== '' && (
-                <div className="tl-bubble">
-                  <span className="tl-sr-only">{texts.you}: </span>
-                  {item.body}
-                </div>
+                <Bubble body={item.body} texts={texts} prefix={<span className="tl-sr-only">{texts.you}: </span>} />
               )}
               <div className="tl-meta">
                 {timeOf(item.created_at)}
@@ -409,10 +444,7 @@ export function MessageList({ messages, pending, texts, agentDisplayName, onRetr
             <div key={row.key} className="tl-msg tl-msg-visitor">
               <MessageFiles attachments={message.attachments} />
               {message.body !== '' && (
-                <div className="tl-bubble">
-                  <span className="tl-sr-only">{texts.you}: </span>
-                  {message.body}
-                </div>
+                <Bubble body={message.body} texts={texts} prefix={<span className="tl-sr-only">{texts.you}: </span>} />
               )}
               <div className="tl-meta">
                 {timeOf(message.created_at)}
@@ -431,7 +463,7 @@ export function MessageList({ messages, pending, texts, agentDisplayName, onRetr
             <div className="tl-msg-column">
               <div className="tl-author">{label}</div>
               <MessageFiles attachments={message.attachments} />
-              {message.body !== '' && <div className="tl-bubble">{message.body}</div>}
+              {message.body !== '' && <Bubble body={message.body} texts={texts} />}
               <div className="tl-meta">{timeOf(message.created_at)}</div>
             </div>
           </div>

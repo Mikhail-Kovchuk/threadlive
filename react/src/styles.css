@@ -646,6 +646,30 @@
   overflow-wrap: anywhere;
 }
 
+/* A long message: its first lines, then "Show more". */
+.tl-bubble-text.tl-clamped {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 10;
+  line-clamp: 10;
+  overflow: hidden;
+}
+
+.tl-root .tl-more {
+  display: block;
+  margin-top: 4px;
+  padding: 0;
+  color: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.tl-msg-agent .tl-more {
+  color: var(--tl-accent-strong);
+}
+
 .tl-msg-visitor .tl-bubble {
   background: var(--tl-accent);
   color: var(--tl-on-accent);

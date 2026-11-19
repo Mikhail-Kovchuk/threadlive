@@ -303,4 +303,7 @@ export interface ThreadliveTexts {
   /** The header button back to the first screen. */
   home: string;
   continueConversation: string;
+  /** Under a long message, shown collapsed. */
+  showMore: string;
+  showLess: string;
 }

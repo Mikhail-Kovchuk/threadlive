@@ -215,6 +215,28 @@ describe('Threadlive', () => {
     expect(onUnreadChange).toHaveBeenLastCalledWith(0);
   });
 
+  it('collapses a long message behind "Show more"', async () => {
+    const long = Array.from({ length: 20 }, (_, i) => `Step ${i + 1}: do the thing.`).join('\n');
+    const transport = fakeTransport(boot({ conversation: { status: 'answered', unread: 0, active: true } }));
+    transport.messages.mockResolvedValue({
+      messages: [agentMessage(5, long), agentMessage(6, 'Short and sweet.')],
+      conversation: { status: 'answered', unread: 0, active: true },
+    });
+    render(<Threadlive transport={transport} />);
+    await openChat();
+
+    const more = await screen.findByRole('button', { name: 'Show more' });
+    expect(screen.getAllByRole('button', { name: 'Show more' })).toHaveLength(1);
+    expect(more.getAttribute('aria-expanded')).toBe('false');
+    expect(document.getElementById(more.getAttribute('aria-controls') ?? '')?.className).toContain('tl-clamped');
+
+    fireEvent.click(more);
+
+    expect(more.textContent).toBe('Show less');
+    expect(more.getAttribute('aria-expanded')).toBe('true');
+    expect(document.getElementById(more.getAttribute('aria-controls') ?? '')?.className).not.toContain('tl-clamped');
+  });
+
   it('outside support hours: says when the team is back, and takes an e-mail after the first message', async () => {
     const transport = fakeTransport(boot({ online: false }));
     render(<Threadlive transport={transport} />);
