@@ -14,7 +14,8 @@ appear.
 | `php artisan threadlive:setup` | Check the bot, the group (Topics, admin rights), the HTTPS address; set the webhook; put the commands in the group's "/" menu; post the dashboard |
 | `php artisan threadlive:setup --local` | The same without a webhook, for a machine with no public HTTPS — then run `threadlive:listen` |
 | `php artisan threadlive:listen` | Take Telegram updates by polling (local development). `--drop-webhook` removes a webhook first — never on a production bot. `--once` for one round |
-| `php artisan threadlive:status` | The webhook as Telegram sees it (last error, pending updates) and conversation counts |
+| `php artisan threadlive:status` | The webhook as Telegram sees it (last error, pending updates), conversation counts, messages not delivered |
+| `php artisan threadlive:retry-failed` | Send again the visitor messages delivery gave up on (the dashboard's "⚠️ Not delivered"). `--conversation=12` for one |
 | `php artisan threadlive:test` | Open a test topic in the group, post in it, close it |
 | `php artisan threadlive:maintain` | Auto-close, delete old topics, "⏰ waiting" alerts, dashboard. Scheduled every 5 min by the package |
 | `php artisan threadlive:prune` | Delete conversations past `retention_days` with their files and topics. Scheduled daily |
