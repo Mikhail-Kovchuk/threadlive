@@ -239,14 +239,19 @@ export function useChat({ transport, open, visible, getContext }: UseChatOptions
   }, [open, visible, lastAgentId, transport]);
 
   const deliver = useCallback(
-    async (body: string, clientMsgId: string) => {
+    async (body: string, clientMsgId: string, files: File[]) => {
       try {
         const context = {
           url: window.location.href,
           title: document.title,
           attributes: getContext.current?.() ?? {},
         };
-        const result = await transport.send({ body, client_msg_id: clientMsgId, context });
+        const result = await transport.send({
+          body,
+          client_msg_id: clientMsgId,
+          context,
+          ...(files.length > 0 ? { files } : {}),
+        });
         dispatch({ type: 'sent', clientMsgId, ...result });
       } catch (error) {
         // A 4xx message is written for visitors (e.g. "The message may not be
@@ -262,13 +267,13 @@ export function useChat({ transport, open, visible, getContext }: UseChatOptions
   );
 
   const send = useCallback(
-    (body: string) => {
+    (body: string, files: File[] = []) => {
       const clientMsgId = uuid();
       dispatch({
         type: 'queued',
-        pending: { client_msg_id: clientMsgId, body, created_at: new Date().toISOString(), state: 'sending' },
+        pending: { client_msg_id: clientMsgId, body, created_at: new Date().toISOString(), state: 'sending', files },
       });
-      void deliver(body, clientMsgId);
+      void deliver(body, clientMsgId, files);
     },
     [deliver],
   );
@@ -279,7 +284,7 @@ export function useChat({ transport, open, visible, getContext }: UseChatOptions
       const pending = latest.current.pending.find((p) => p.client_msg_id === clientMsgId);
       if (!pending) return;
       dispatch({ type: 'resending', clientMsgId });
-      void deliver(pending.body, clientMsgId);
+      void deliver(pending.body, clientMsgId, pending.files ?? []);
     },
     [deliver, latest],
   );

@@ -8,6 +8,8 @@ export interface PendingMessage {
   state: 'sending' | 'failed';
   /** A reason worth showing the visitor, e.g. a validation message. */
   error?: string;
+  /** Kept for a retry, and shown from the browser until the server has them. */
+  files?: File[];
 }
 
 export interface ChatState {

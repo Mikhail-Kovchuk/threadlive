@@ -10,8 +10,10 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type DragEvent,
   type KeyboardEvent,
 } from 'react';
+import { checkFiles } from './attachments.js';
 import { findLast, useChat, useDocumentVisible, useLatest, useMediaQuery } from './hooks.js';
 import { Composer, EmailCard, Header, Launcher, MessageList, Preview, Welcome, agentLabel } from './parts.js';
 import { DEFAULT_TEXTS } from './texts.js';
@@ -70,6 +72,9 @@ const Widget = forwardRef<ThreadliveHandle, ThreadliveProps>(function Widget(pro
 
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState('');
+  const [files, setFiles] = useState<File[]>([]);
+  const [fileErrors, setFileErrors] = useState<string[]>([]);
+  const [dragging, setDragging] = useState(false);
   const [dismissedPreview, setDismissedPreview] = useState<number | null>(null);
   const isPhone = useMediaQuery(PHONE_QUERY);
   const visible = useDocumentVisible();
@@ -148,6 +153,40 @@ const Widget = forwardRef<ThreadliveHandle, ThreadliveProps>(function Widget(pro
   }
 
   const agentName = bootstrap?.agent_display_name ?? texts.title;
+  const attachmentRules = bootstrap?.attachments?.enabled && bootstrap.can_write ? bootstrap.attachments : null;
+
+  const addFiles = (incoming: File[]) => {
+    if (!attachmentRules || incoming.length === 0) return;
+    const checked = checkFiles(files, incoming, attachmentRules, texts);
+    setFiles(checked.files);
+    setFileErrors(checked.errors);
+  };
+
+  const sendMessage = (body: string, toSend: File[]) => {
+    chat.send(body, toSend);
+    setFiles([]);
+    setFileErrors([]);
+  };
+
+  // Files dropped anywhere on the panel.
+  const dropHandlers = attachmentRules
+    ? {
+        onDragOver: (event: DragEvent<HTMLElement>) => {
+          if (Array.from(event.dataTransfer.types).includes('Files')) {
+            event.preventDefault();
+            setDragging(true);
+          }
+        },
+        onDragLeave: (event: DragEvent<HTMLElement>) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false);
+        },
+        onDrop: (event: DragEvent<HTMLElement>) => {
+          event.preventDefault();
+          setDragging(false);
+          addFiles(Array.from(event.dataTransfer.files));
+        },
+      }
+    : {};
   const lastAgent = findLast(state.messages, (m) => m.direction === 'agent');
   const preview =
     !open && unread > 0 && lastAgent && lastAgent.id !== dismissedPreview ? lastAgent : null;
@@ -170,7 +209,14 @@ const Widget = forwardRef<ThreadliveHandle, ThreadliveProps>(function Widget(pro
           aria-modal={isPhone || undefined}
           aria-label={texts.title}
           tabIndex={-1}
+          data-dragging={dragging ? 'true' : undefined}
+          {...dropHandlers}
         >
+          {dragging && (
+            <div className="tl-drop" aria-hidden="true">
+              {texts.dropFiles}
+            </div>
+          )}
           <Header
             texts={texts}
             logo={logo}
@@ -237,9 +283,17 @@ const Widget = forwardRef<ThreadliveHandle, ThreadliveProps>(function Widget(pro
                 texts={texts}
                 draft={draft}
                 onDraft={setDraft}
-                onSend={chat.send}
+                onSend={sendMessage}
                 canWrite={bootstrap.can_write}
                 maxLength={bootstrap.max_message_length}
+                attachments={attachmentRules}
+                files={files}
+                fileErrors={fileErrors}
+                onAddFiles={addFiles}
+                onRemoveFile={(index) => {
+                  setFiles((current) => current.filter((_, i) => i !== index));
+                  setFileErrors([]);
+                }}
               />
             </>
           )}

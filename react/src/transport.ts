@@ -1,6 +1,7 @@
 import type {
   Bootstrap,
   ChatMessage,
+  ChatAttachment,
   ConversationState,
   MessagesResult,
   SendContext,
@@ -50,14 +51,16 @@ export function createHttpTransport({ apiUrl, getAuthHeaders }: HttpTransportOpt
       headers['X-Threadlive-Token'] = token;
     }
 
-    if (body !== undefined) {
+    // FormData sets its own multipart Content-Type, boundary included.
+    const isForm = typeof FormData !== 'undefined' && body instanceof FormData;
+    if (body !== undefined && !isForm) {
       headers['Content-Type'] = 'application/json';
     }
 
     const response = await fetch(base + path, {
       method,
       headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: body === undefined ? undefined : isForm ? (body as FormData) : JSON.stringify(body),
     });
 
     if (!response.ok) {
@@ -67,12 +70,21 @@ export function createHttpTransport({ apiUrl, getAuthHeaders }: HttpTransportOpt
     return (response.status === 204 ? undefined : await response.json()) as T;
   }
 
+  // File links come relative (signed that way, so proxies cannot break
+  // them): put the API's origin in front.
+  const absolute = (message: ChatMessage): ChatMessage =>
+    message.attachments
+      ? { ...message, attachments: message.attachments.map((a) => ({ ...a, url: new URL(a.url, base).href })) }
+      : message;
+
   return {
     bootstrap: () => request<Bootstrap>('GET', '/bootstrap'),
 
     async messages(after) {
       try {
-        return await request<MessagesResult>('GET', after === null ? '/messages' : `/messages?after=${after}`);
+        const result = await request<MessagesResult>('GET', after === null ? '/messages' : `/messages?after=${after}`);
+
+        return { ...result, messages: result.messages.map(absolute) };
       } catch (error) {
         // 404: this visitor has no conversation (pruned, or another device's
         // token). Not a failure — there is just nothing to show.
@@ -84,15 +96,30 @@ export function createHttpTransport({ apiUrl, getAuthHeaders }: HttpTransportOpt
       }
     },
 
-    async send(input) {
-      const result = await request<SendResult & { visitor_token?: string }>('POST', '/messages', input);
+    async send({ files, ...input }) {
+      let body: unknown = input;
+
+      if (files && files.length > 0) {
+        const form = new FormData();
+        form.append('body', input.body);
+        form.append('client_msg_id', input.client_msg_id);
+        if (input.context) form.append('context', JSON.stringify(input.context));
+        for (const file of files) form.append('files[]', file, file.name);
+        body = form;
+      }
+
+      const result = await request<SendResult & { visitor_token?: string }>('POST', '/messages', body);
 
       // Returned once, with the guest's first message.
       if (result.visitor_token) {
         writeStorage(tokenKey, result.visitor_token);
       }
 
-      return { message: result.message, context: result.context ?? null, conversation: result.conversation };
+      return {
+        message: absolute(result.message),
+        context: result.context ?? null,
+        conversation: result.conversation,
+      };
     },
 
     markRead: (messageId) => request<void>('POST', '/read', { message_id: messageId }),
@@ -223,6 +250,12 @@ export function createDemoTransport(options: DemoTransportOptions = {}): Threadl
         can_write: true,
         poll_ms: { open: 1500, closed: 5000, idle: 15000, idle_after: 300000 },
         topics,
+        attachments: {
+          enabled: true,
+          max_kb: 10240,
+          max_files: 5,
+          accept: ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'application/pdf'],
+        },
         max_message_length: 2000,
         agent_display_name: 'Support',
         conversation: snapshot(),
@@ -238,7 +271,7 @@ export function createDemoTransport(options: DemoTransportOptions = {}): Threadl
       };
     },
 
-    async send({ body, client_msg_id, context }) {
+    async send({ body, client_msg_id, context, files }) {
       await wait(latencyMs);
 
       const repeated = messages.find((m) => m.client_msg_id === client_msg_id);
@@ -250,7 +283,23 @@ export function createDemoTransport(options: DemoTransportOptions = {}): Threadl
         card = add({ direction: 'context', body: line });
       }
 
-      const message = repeated ?? add({ direction: 'visitor', body, client_msg_id, author: null });
+      const message =
+        repeated ??
+        add({
+          direction: 'visitor',
+          body,
+          client_msg_id,
+          author: null,
+          // In memory only: the browser's own link to the file.
+          attachments: (files ?? []).map((file, i) => ({
+            id: `${client_msg_id}-${i}`,
+            name: file.name,
+            mime: file.type,
+            size: file.size,
+            kind: (file.type.startsWith('image/') ? 'image' : 'file') as ChatAttachment['kind'],
+            url: typeof URL.createObjectURL === 'function' ? URL.createObjectURL(file) : '',
+          })),
+        });
 
       if (!conversation) {
         conversation = { status: 'waiting', unread: 0, email: null, active: true };

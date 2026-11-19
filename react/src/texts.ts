@@ -41,6 +41,13 @@ export const DEFAULT_TEXTS: ThreadliveTexts = {
   tryAgain: 'Try again',
   loading: 'Loading…',
   dismissPreview: 'Dismiss',
+  attach: 'Attach a file',
+  removeFile: 'Remove {name}',
+  fileTooBig: '{name} is over {max} MB.',
+  fileType: '{name} cannot be sent: images and PDF files only.',
+  tooManyFiles: 'Up to {max} files in one message.',
+  dropFiles: 'Drop files to send them',
+  aFile: '📎 A file',
 };
 
 /** Fills `{name}` placeholders; an unknown one is left as written. */

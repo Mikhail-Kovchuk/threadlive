@@ -44,6 +44,39 @@ describe('createHttpTransport', () => {
     expect(pollInit?.headers).toMatchObject({ 'X-Threadlive-Token': 'secret-token', Authorization: 'Bearer jwt' });
   });
 
+  it('sends files as multipart, and makes the file links absolute', async () => {
+    const transport = createHttpTransport({ apiUrl: API });
+    fetchMock.mockResolvedValueOnce(
+      json(201, {
+        message: {
+          id: 1,
+          direction: 'visitor',
+          body: '',
+          created_at: '2026-11-18T10:00:00Z',
+          attachments: [{ id: 'a', name: 'cashier.png', mime: 'image/png', size: 5, kind: 'image', url: '/threadlive/files/1/a?signature=s' }],
+        },
+        conversation: { status: 'waiting', unread: 0, active: true },
+      }),
+    );
+
+    const result = await transport.send({
+      body: '',
+      client_msg_id: 'id-1',
+      context: { url: 'https://example.com/', title: 'Home', attributes: {} },
+      files: [new File(['png'], 'cashier.png', { type: 'image/png' })],
+    });
+
+    const [, init] = fetchMock.mock.calls[0] ?? [];
+    expect(init?.body).toBeInstanceOf(FormData);
+    expect((init?.headers as Record<string, string>)['Content-Type']).toBeUndefined();
+    const form = init?.body as FormData;
+    expect(form.get('client_msg_id')).toBe('id-1');
+    expect(JSON.parse(String(form.get('context')))).toMatchObject({ url: 'https://example.com/' });
+    expect((form.get('files[]') as File).name).toBe('cashier.png');
+
+    expect(result.message.attachments?.[0]?.url).toBe('https://api.example.com/threadlive/files/1/a?signature=s');
+  });
+
   it('reads a 404 for the messages as "no conversation", not as a failure', async () => {
     fetchMock.mockResolvedValueOnce(json(404, { message: 'Not found.' }));
 

@@ -5,10 +5,12 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type ClipboardEvent,
   type FormEvent,
   type KeyboardEvent,
   type ReactNode,
 } from 'react';
+import { DraftFile, MessageFiles } from './attachments.js';
 import type { PendingMessage } from './chat.js';
 import {
   ChatIcon,
@@ -18,11 +20,12 @@ import {
   ClockIcon,
   CloseIcon,
   DeliveredIcon,
+  PaperclipIcon,
   PlaneIcon,
   SendIcon,
 } from './icons.js';
 import { format } from './texts.js';
-import type { ChatMessage, SupportHours, ThreadliveTexts } from './types.js';
+import type { AttachmentRules, ChatMessage, SupportHours, ThreadliveTexts } from './types.js';
 
 // --- Small helpers --------------------------------------------------------------
 
@@ -132,7 +135,7 @@ export function Preview({ message, label, texts, onOpen, onDismiss }: PreviewPro
         <Avatar name={message.author ?? label} large />
         <span className="tl-preview-text">
           <span className="tl-preview-author">{label}</span>
-          <span className="tl-preview-body">{message.body}</span>
+          <span className="tl-preview-body">{message.body !== '' ? message.body : texts.aFile}</span>
         </span>
       </button>
       <button type="button" className="tl-icon-btn tl-preview-close" aria-label={texts.dismissPreview} onClick={onDismiss}>
@@ -324,10 +327,13 @@ export function MessageList({ messages, pending, texts, agentDisplayName, onRetr
 
           return (
             <div key={row.key} className="tl-msg tl-msg-visitor">
-              <div className="tl-bubble">
-                <span className="tl-sr-only">{texts.you}: </span>
-                {item.body}
-              </div>
+              <MessageFiles files={item.files} />
+              {item.body !== '' && (
+                <div className="tl-bubble">
+                  <span className="tl-sr-only">{texts.you}: </span>
+                  {item.body}
+                </div>
+              )}
               <div className="tl-meta">
                 {timeOf(item.created_at)}
                 {item.state === 'sending' ? (
@@ -367,10 +373,13 @@ export function MessageList({ messages, pending, texts, agentDisplayName, onRetr
         if (message.direction === 'visitor') {
           return (
             <div key={row.key} className="tl-msg tl-msg-visitor">
-              <div className="tl-bubble">
-                <span className="tl-sr-only">{texts.you}: </span>
-                {message.body}
-              </div>
+              <MessageFiles attachments={message.attachments} />
+              {message.body !== '' && (
+                <div className="tl-bubble">
+                  <span className="tl-sr-only">{texts.you}: </span>
+                  {message.body}
+                </div>
+              )}
               <div className="tl-meta">
                 {timeOf(message.created_at)}
                 <DeliveredIcon />
@@ -387,7 +396,8 @@ export function MessageList({ messages, pending, texts, agentDisplayName, onRetr
             <Avatar name={message.author ?? agentDisplayName} />
             <div className="tl-msg-column">
               <div className="tl-author">{label}</div>
-              <div className="tl-bubble">{message.body}</div>
+              <MessageFiles attachments={message.attachments} />
+              {message.body !== '' && <div className="tl-bubble">{message.body}</div>}
               <div className="tl-meta">{timeOf(message.created_at)}</div>
             </div>
           </div>
@@ -484,20 +494,28 @@ interface ComposerProps {
   texts: ThreadliveTexts;
   draft: string;
   onDraft: (value: string) => void;
-  onSend: (body: string) => void;
+  onSend: (body: string, files: File[]) => void;
   canWrite: boolean;
   maxLength: number;
+  /** Null when files cannot be sent. */
+  attachments: AttachmentRules | null;
+  files: File[];
+  fileErrors: string[];
+  onAddFiles: (files: File[]) => void;
+  onRemoveFile: (index: number) => void;
 }
 
 const MAX_INPUT_HEIGHT = 120;
 
 export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function Composer(
-  { texts, draft, onDraft, onSend, canWrite, maxLength },
+  { texts, draft, onDraft, onSend, canWrite, maxLength, attachments, files, fileErrors, onAddFiles, onRemoveFile },
   ref,
 ) {
   const id = useId();
   const body = draft.trim();
   const field = useRef<HTMLTextAreaElement>(null);
+  const picker = useRef<HTMLInputElement>(null);
+  const canSend = canWrite && (body !== '' || files.length > 0);
 
   useImperativeHandle(ref, () => field.current as HTMLTextAreaElement);
 
@@ -513,8 +531,8 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
 
   const submit = (event?: FormEvent) => {
     event?.preventDefault();
-    if (!body || !canWrite) return;
-    onSend(body);
+    if (!canSend) return;
+    onSend(body, files);
     onDraft('');
   };
 
@@ -526,26 +544,72 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
     }
   };
 
+  // A screenshot pasted with Ctrl+V arrives as a file.
+  const onPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    const pasted = Array.from(event.clipboardData?.files ?? []);
+    if (attachments && pasted.length > 0) {
+      event.preventDefault();
+      onAddFiles(pasted);
+    }
+  };
+
   return (
     <form className="tl-composer" onSubmit={submit}>
-      <label className="tl-sr-only" htmlFor={id}>
-        {texts.yourMessage}
-      </label>
-      <textarea
-        ref={field}
-        id={id}
-        className="tl-textarea"
-        rows={1}
-        value={draft}
-        maxLength={maxLength}
-        disabled={!canWrite}
-        placeholder={canWrite ? texts.placeholder : texts.cannotWrite}
-        onKeyDown={onKeyDown}
-        onChange={(event) => onDraft(event.currentTarget.value)}
-      />
-      <button type="submit" className="tl-send" aria-label={texts.send} disabled={!body || !canWrite}>
-        <SendIcon />
-      </button>
+      {fileErrors.length > 0 && (
+        <div className="tl-file-errors" role="alert">
+          {fileErrors.map((error) => (
+            <p key={error}>{error}</p>
+          ))}
+        </div>
+      )}
+      {files.length > 0 && (
+        <div className="tl-drafts">
+          {files.map((file, i) => (
+            <DraftFile key={`${file.name}-${file.size}-${i}`} file={file} texts={texts} onRemove={() => onRemoveFile(i)} />
+          ))}
+        </div>
+      )}
+      <div className="tl-composer-row">
+        {attachments && canWrite && (
+          <>
+            <button type="button" className="tl-attach" aria-label={texts.attach} title={texts.attach} onClick={() => picker.current?.click()}>
+              <PaperclipIcon />
+            </button>
+            <input
+              ref={picker}
+              type="file"
+              className="tl-sr-only"
+              tabIndex={-1}
+              aria-hidden="true"
+              multiple={attachments.max_files > 1}
+              accept={attachments.accept.join(',')}
+              onChange={(event) => {
+                onAddFiles(Array.from(event.currentTarget.files ?? []));
+                event.currentTarget.value = ''; // the same file may be chosen again
+              }}
+            />
+          </>
+        )}
+        <label className="tl-sr-only" htmlFor={id}>
+          {texts.yourMessage}
+        </label>
+        <textarea
+          ref={field}
+          id={id}
+          className="tl-textarea"
+          rows={1}
+          value={draft}
+          maxLength={maxLength}
+          disabled={!canWrite}
+          placeholder={canWrite ? texts.placeholder : texts.cannotWrite}
+          onKeyDown={onKeyDown}
+          onPaste={onPaste}
+          onChange={(event) => onDraft(event.currentTarget.value)}
+        />
+        <button type="submit" className="tl-send" aria-label={texts.send} disabled={!canSend}>
+          <SendIcon />
+        </button>
+      </div>
     </form>
   );
 });

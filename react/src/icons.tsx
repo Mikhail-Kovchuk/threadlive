@@ -81,6 +81,33 @@ export function DeliveredIcon({ size = 16 }: IconProps) {
   );
 }
 
+export function PaperclipIcon({ size = 22 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <path
+        d="m20 11.5-8.1 8.1a5 5 0 0 1-7.1-7.1l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.4l7.8-7.8"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+export function FileIcon({ size = 20 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <path
+        d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z M14 3v5h5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function ClipboardIcon({ size = 18 }: IconProps) {
   return (
     <svg {...base(size)}>

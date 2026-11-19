@@ -24,6 +24,7 @@ function boot(overrides: Partial<Bootstrap> = {}): Bootstrap {
     poll_ms: { open: 1000, closed: 5000, idle: 5000, idle_after: 300000 },
     topics: [],
     max_message_length: 2000,
+    attachments: { enabled: true, max_kb: 1024, max_files: 2, accept: ['image/png', 'application/pdf'] },
     agent_display_name: 'Support',
     conversation: null,
     ...overrides,
@@ -294,6 +295,94 @@ describe('Threadlive', () => {
 
     fireEvent.keyDown(document.body, { key: 'a' });
     await waitFor(() => expect(transport.messages.mock.calls.length).toBeGreaterThan(whileIdle));
+  });
+
+  describe('files', () => {
+    const png = (name = 'cashier.png', size = 2000) => new File([new Uint8Array(size)], name, { type: 'image/png' });
+
+    it('attaches a file, shows it, and sends it with the message', async () => {
+      const transport = fakeTransport();
+      transport.send.mockImplementationOnce(async ({ body, files }) => ({
+        message: {
+          id: 1,
+          direction: 'visitor',
+          body,
+          created_at: new Date().toISOString(),
+          attachments: (files ?? []).map((f, i) => ({
+            id: String(i),
+            name: f.name,
+            mime: f.type,
+            size: f.size,
+            kind: 'image' as const,
+            url: `https://api.example.com/threadlive/files/1/${i}?signature=x`,
+          })),
+        },
+        conversation: waiting,
+      }));
+      render(<Threadlive transport={transport} />);
+      await openChat();
+
+      fireEvent.change(document.querySelector('input[type="file"]') as HTMLInputElement, {
+        target: { files: [png()] },
+      });
+      expect(screen.getByRole('button', { name: 'Remove cashier.png' })).toBeTruthy();
+
+      type('Here is the screen');
+
+      await waitFor(() =>
+        expect(transport.send).toHaveBeenCalledWith(expect.objectContaining({ body: 'Here is the screen', files: [expect.any(File)] })),
+      );
+      const image = await screen.findByRole('img', { name: 'cashier.png' });
+      expect(image.closest('a')?.getAttribute('href')).toBe('https://api.example.com/threadlive/files/1/0?signature=x');
+      expect(screen.queryByRole('button', { name: 'Remove cashier.png' })).toBeNull();
+    });
+
+    it('sends files without text', async () => {
+      const transport = fakeTransport();
+      render(<Threadlive transport={transport} />);
+      await openChat();
+
+      fireEvent.change(document.querySelector('input[type="file"]') as HTMLInputElement, { target: { files: [png()] } });
+      fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+      await waitFor(() => expect(transport.send).toHaveBeenCalledWith(expect.objectContaining({ body: '' })));
+    });
+
+    it('says why a file cannot go, before uploading anything', async () => {
+      render(<Threadlive transport={fakeTransport()} />);
+      await openChat();
+      const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+
+      fireEvent.change(input, { target: { files: [new File(['x'], 'setup.exe', { type: 'application/x-msdownload' })] } });
+      expect(await screen.findByText('setup.exe cannot be sent: images and PDF files only.')).toBeTruthy();
+
+      fireEvent.change(input, { target: { files: [png('big.png', 2 * 1024 * 1024)] } });
+      expect(await screen.findByText('big.png is over 1 MB.')).toBeTruthy();
+
+      fireEvent.change(input, { target: { files: [png('a.png'), png('b.png'), png('c.png')] } });
+      expect(await screen.findByText('Up to 2 files in one message.')).toBeTruthy();
+      expect(screen.getAllByRole('button', { name: /^Remove / })).toHaveLength(2);
+    });
+
+    it('takes a pasted screenshot', async () => {
+      render(<Threadlive transport={fakeTransport()} />);
+      await openChat();
+
+      fireEvent.paste(screen.getByLabelText('Your message'), { clipboardData: { files: [png('pasted.png')] } });
+
+      expect(screen.getByRole('button', { name: 'Remove pasted.png' })).toBeTruthy();
+    });
+
+    it('offers no paperclip when files are turned off', async () => {
+      render(
+        <Threadlive
+          transport={fakeTransport(boot({ attachments: { enabled: false, max_kb: 1, max_files: 1, accept: [] } }))}
+        />,
+      );
+      await openChat();
+
+      expect(screen.queryByRole('button', { name: 'Attach a file' })).toBeNull();
+    });
   });
 
   it('turns the theme into CSS variables, leaving the rest to the stylesheet', async () => {
