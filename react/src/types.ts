@@ -164,6 +164,11 @@ interface CommonProps {
   launcher?: 'pill' | 'icon' | 'none';
   /** Your own icon in the launcher, instead of the chat bubble. */
   launcherIcon?: ReactNode;
+  /**
+   * When a reply arrives the visitor cannot see: "(1)" in the tab's title
+   * while the tab is hidden, and a soft chime. Both on by default.
+   */
+  notify?: { title?: boolean; sound?: boolean };
   /** Agent names for the avatars on the first screen. */
   agents?: string[];
   /**

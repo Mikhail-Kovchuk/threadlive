@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { createRef } from 'react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   Threadlive,
   ThreadliveRequestError,
@@ -240,31 +240,59 @@ describe('Threadlive', () => {
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Open support chat' }));
   });
 
-  it('stops polling while the tab is hidden and resumes when it is shown', async () => {
+  describe('a hidden tab', () => {
     let hidden = false;
-    const descriptor = Object.getOwnPropertyDescriptor(Document.prototype, 'hidden');
-    Object.defineProperty(document, 'hidden', { configurable: true, get: () => hidden });
+    const setHidden = (value: boolean) => {
+      hidden = value;
+      document.dispatchEvent(new Event('visibilitychange'));
+    };
 
-    try {
+    beforeEach(() => {
+      hidden = false;
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => hidden });
+      document.title = 'Acme';
+    });
+    afterEach(() => {
+      delete (document as { hidden?: boolean }).hidden;
+    });
+
+    it('stops polling when no reply is awaited, and resumes when the tab is shown', async () => {
+      const answered: ConversationState = { status: 'answered', unread: 0, active: true };
+      const transport = fakeTransport(
+        boot({ conversation: answered, poll_ms: { open: 20, closed: 20, idle: 20, idle_after: 300000 } }),
+      );
+      transport.messages.mockResolvedValue({ messages: [], conversation: answered });
+      render(<Threadlive transport={transport} />);
+      await waitFor(() => expect(transport.messages).toHaveBeenCalled());
+
+      setHidden(true);
+      await sleep(40); // a request already in flight may still finish
+      const whileHidden = transport.messages.mock.calls.length;
+      await sleep(150); // seven poll intervals
+      expect(transport.messages.mock.calls.length).toBe(whileHidden);
+
+      setHidden(false);
+      await waitFor(() => expect(transport.messages.mock.calls.length).toBeGreaterThan(whileHidden));
+    });
+
+    it('keeps checking while the visitor awaits a reply, and puts it in the tab title', async () => {
       const transport = fakeTransport(
         boot({ conversation: waiting, poll_ms: { open: 20, closed: 20, idle: 20, idle_after: 300000 } }),
       );
       render(<Threadlive transport={transport} />);
       await waitFor(() => expect(transport.messages).toHaveBeenCalled());
 
-      hidden = true;
-      await sleep(40); // a request already in flight may still finish
-      const whileHidden = transport.messages.mock.calls.length;
-      await sleep(150); // seven poll intervals
-      expect(transport.messages.mock.calls.length).toBe(whileHidden);
+      setHidden(true);
+      transport.messages.mockResolvedValue({
+        messages: [agentMessage(9, 'Here is your answer.')],
+        conversation: { status: 'answered', unread: 1, active: true },
+      });
 
-      hidden = false;
-      document.dispatchEvent(new Event('visibilitychange'));
-      await waitFor(() => expect(transport.messages.mock.calls.length).toBeGreaterThan(whileHidden));
-    } finally {
-      delete (document as { hidden?: boolean }).hidden;
-      if (descriptor) Object.defineProperty(Document.prototype, 'hidden', descriptor);
-    }
+      await waitFor(() => expect(document.title).toBe('(1) Acme'));
+
+      setHidden(false);
+      await waitFor(() => expect(document.title).toBe('Acme'));
+    });
   });
 
   it('does not poll a conversation that is no longer live while the panel is closed', async () => {

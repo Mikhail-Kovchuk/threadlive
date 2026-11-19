@@ -64,6 +64,17 @@ const [unread, setUnread] = useState(0);
 <Threadlive ref={chat} apiUrl={apiUrl} launcher="none" onUnreadChange={setUnread} />
 ```
 
+### Replies in the background
+
+A reply the visitor cannot see puts "(1)" in the tab's title while the tab is
+hidden and plays a soft chime (synthesised, no file). While the visitor waits
+for an answer the widget keeps checking in a hidden tab, until they have been
+away for `poll_ms.idle_after`. Turn either off:
+
+```tsx
+<Threadlive apiUrl={apiUrl} notify={{ sound: false }} />
+```
+
 ## License
 
 [MIT](LICENSE)

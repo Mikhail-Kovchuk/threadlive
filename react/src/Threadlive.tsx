@@ -14,7 +14,7 @@ import {
   type KeyboardEvent,
 } from 'react';
 import { checkFiles } from './attachments.js';
-import { findLast, useChat, useDocumentVisible, useLatest, useMediaQuery } from './hooks.js';
+import { findLast, useAttention, useChat, useDocumentVisible, useLatest, useMediaQuery } from './hooks.js';
 import { Composer, EmailCard, Header, Launcher, MessageList, Preview, Welcome, agentLabel } from './parts.js';
 import { DEFAULT_TEXTS } from './texts.js';
 import { createHttpTransport } from './transport.js';
@@ -84,6 +84,11 @@ const Widget = forwardRef<ThreadliveHandle, ThreadliveProps>(function Widget(pro
   const chat = useChat({ transport, open, visible, getContext });
   const { state, unread } = chat;
   const latestConversation = useLatest(state.conversation);
+
+  useAttention(unread, open, visible, state.phase === 'ready', {
+    title: props.notify?.title ?? true,
+    sound: props.notify?.sound ?? true,
+  });
 
   const rootRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLElement>(null);

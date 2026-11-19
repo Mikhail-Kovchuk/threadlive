@@ -93,6 +93,80 @@ export function useIdle(afterMs: number): boolean {
   return idle;
 }
 
+/**
+ * A reply the visitor cannot see right now: "(1) Page title" while the tab
+ * is hidden, and a soft chime when it arrives with the tab hidden or the
+ * panel closed. Unread replies already there on page load make no sound.
+ */
+export function useAttention(
+  unread: number,
+  open: boolean,
+  visible: boolean,
+  ready: boolean,
+  options: { title: boolean; sound: boolean },
+): void {
+  const previous = useRef<number | null>(null);
+  const originalTitle = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!options.title) return;
+
+    if (!visible && unread > 0) {
+      originalTitle.current ??= document.title;
+      document.title = `(${unread}) ${originalTitle.current}`;
+    } else if (originalTitle.current !== null) {
+      document.title = originalTitle.current;
+      originalTitle.current = null;
+    }
+  }, [unread, visible, options.title]);
+
+  useEffect(
+    () => () => {
+      if (originalTitle.current !== null) document.title = originalTitle.current;
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!ready) return;
+
+    const before = previous.current;
+    previous.current = unread;
+
+    if (before !== null && unread > before && options.sound && (!visible || !open)) {
+      chime();
+    }
+  }, [unread, visible, open, ready, options.sound]);
+}
+
+/** Two quiet notes, synthesised: no file to ship, nothing to load. */
+function chime(): void {
+  try {
+    const Context =
+      window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Context) return;
+
+    const context = new Context();
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    const now = context.currentTime;
+
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(880, now);
+    oscillator.frequency.setValueAtTime(1320, now + 0.12);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.07, now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.4);
+
+    oscillator.connect(gain).connect(context.destination);
+    oscillator.start(now);
+    oscillator.stop(now + 0.42);
+    oscillator.onended = () => void context.close();
+  } catch {
+    // No sound (no audio, or the browser wants a gesture first): the title still tells.
+  }
+}
+
 const MAX_BACKOFF_MS = 60_000;
 
 interface UseChatOptions {
@@ -108,14 +182,18 @@ interface UseChatOptions {
  * Polling costs the host a request each time, so it runs only when a reply
  * could matter:
  *
- *   tab hidden                                  → never
  *   no conversation                             → never
+ *   tab hidden, visitor awaiting a reply        → every poll_ms.closed, until idle (the
+ *                                                 tab title and a sound tell them it came)
+ *   tab hidden, otherwise                       → never
  *   panel closed, conversation not live         → never (next page load shows replies)
  *   panel closed, visitor idle                  → never (input resumes it at once)
  *   panel closed, live conversation             → every poll_ms.closed, for the badge
  *   panel open                                  → every poll_ms.open (poll_ms.idle when idle)
  *
- * with exponential backoff after a failure.
+ * with exponential backoff after a failure. "Awaiting a reply": the visitor
+ * wrote last (status waiting). Idle: no input for poll_ms.idle_after — in a
+ * hidden tab that is simply time since they left it.
  */
 export function useChat({ transport, open, visible, getContext }: UseChatOptions) {
   const [state, dispatch] = useReducer(chatReducer, initialChatState);
@@ -143,6 +221,7 @@ export function useChat({ transport, open, visible, getContext }: UseChatOptions
   const ready = state.phase === 'ready' && state.bootstrap?.enabled === true;
   const hasConversation = state.conversation !== null;
   const live = state.conversation?.active === true;
+  const awaitingReply = state.conversation?.status === 'waiting';
   const poll = state.bootstrap?.poll_ms;
   const pollOpen = poll?.open ?? 3000;
   const pollClosed = poll?.closed ?? 30000;
@@ -154,8 +233,14 @@ export function useChat({ transport, open, visible, getContext }: UseChatOptions
       return;
     }
 
+    // Hidden tab: only for the reply the visitor is waiting for, while they
+    // may still be around to come back to it.
+    if (!visible && (!awaitingReply || idle)) {
+      return;
+    }
+
     // Panel closed: only for a reply that may still come, to someone around to see it.
-    if (!open && (!live || idle)) {
+    if (visible && !open && (!live || idle)) {
       return;
     }
 
@@ -172,13 +257,12 @@ export function useChat({ transport, open, visible, getContext }: UseChatOptions
 
     const schedule = () => {
       clearTimeout(timer);
-      const base = open ? (idle ? pollIdle : pollOpen) : pollClosed;
+      const base = visible && open ? (idle ? pollIdle : pollOpen) : pollClosed;
       timer = setTimeout(() => void tick(), failures === 0 ? base : Math.min(base * 2 ** failures, MAX_BACKOFF_MS));
     };
 
     const tick = async () => {
-      // Hidden tab: stop here; becoming visible starts the next tick.
-      if (document.hidden || inFlight) {
+      if (inFlight) {
         return;
       }
 
@@ -201,25 +285,16 @@ export function useChat({ transport, open, visible, getContext }: UseChatOptions
       }
     };
 
-    const onVisibility = () => {
-      if (!document.hidden) {
-        clearTimeout(timer);
-        void tick();
-      }
-    };
-
-    // Whatever (re)started polling — opening the panel, coming back from
-    // idle, a first load — deserves an answer now, not a cycle later.
+    // Whatever (re)started polling — opening the panel, the tab coming back,
+    // coming back from idle, a first load — deserves an answer now, not a
+    // cycle later.
     void tick();
-
-    document.addEventListener('visibilitychange', onVisibility);
 
     return () => {
       cancelled = true;
       clearTimeout(timer);
-      document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [ready, hasConversation, live, idle, open, transport, pollOpen, pollClosed, pollIdle, latest]);
+  }, [ready, hasConversation, live, awaitingReply, idle, open, visible, transport, pollOpen, pollClosed, pollIdle, latest]);
 
   // Read receipts: whatever the visitor can see is read.
   const lastAgentId = findLast(state.messages, (m) => m.direction === 'agent')?.id ?? null;
